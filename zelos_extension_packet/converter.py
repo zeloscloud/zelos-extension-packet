@@ -215,12 +215,18 @@ def convert_pcap(
             with _packet_progress(decoder, source, enabled=progress):
                 packets = decoder.convert_file(str(source))
             decoder.flush()
+    except KeyboardInterrupt:
+        # A deliberate abort is not a failure: the rows drained so far are a
+        # valid trace (the package aborts between batches), and whoever hits
+        # Ctrl-C at minute 25 of a long convert wants those 25 minutes.
+        logger.error("Aborted; partial trace kept: %s", destination)
+        raise
     except BaseException:
         # The writer creates the file before the first packet is decoded, so a
-        # failed or interrupted decode would otherwise leave a stub .trz that
-        # looks exactly like a successful conversion of an empty capture. A
-        # partial trace is worse than none: delete it and let the caller decide.
-        # `resolve_output` guarantees this path was ours to write.
+        # FAILED decode would otherwise leave a stub .trz that looks exactly
+        # like a successful conversion of an empty capture. A partial trace
+        # from an error is worse than none: delete it and let the caller
+        # decide. `resolve_output` guarantees this path was ours to write.
         destination.unlink(missing_ok=True)
         logger.error("Conversion of %s failed; removed partial %s", source.name, destination)
         raise

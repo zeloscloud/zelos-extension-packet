@@ -19,6 +19,7 @@ from . import pkg
 from .agent_filter import AMPLIFICATION_WARNING, AgentEndpoint, is_loopback_interface
 from .agent_filter import resolve_agent_endpoint as _resolve_agent_endpoint
 from .capture import (
+    DEFAULT_FRAME_SNAPLEN,
     CaptureDeniedError,
     CaptureSession,
     ConfigError,
@@ -141,6 +142,9 @@ def run_app_mode(file: Path | None = None) -> None:
     _apply_log_level(config)
 
     log_frames = bool(config.get("log_frames", True))
+    # `.get` with a default, not `or`: an explicit null means "store every
+    # captured byte" and must survive, where `or` would fold it back to 256.
+    frame_snaplen = config.get("frame_snaplen", DEFAULT_FRAME_SNAPLEN)
     replay = str(config.get("replay_pcap") or "").strip()
 
     interfaces: list[InterfaceConfig] = []
@@ -169,11 +173,16 @@ def run_app_mode(file: Path | None = None) -> None:
         logger.info("Replay mode: decoding %s (no capture handle is opened)", replay)
         _install_replay_shutdown()
         try:
+            replay_kwargs = {
+                "name": Path(replay).stem,
+                "log_frames": log_frames,
+                "frame_snaplen": frame_snaplen,
+            }
             if output_file:
                 with zelos_sdk.TraceWriter(str(output_file)):
-                    replay_pcap(replay, name=Path(replay).stem, log_frames=log_frames)
+                    replay_pcap(replay, **replay_kwargs)
             else:
-                replay_pcap(replay, name=Path(replay).stem, log_frames=log_frames)
+                replay_pcap(replay, **replay_kwargs)
         except ConfigError as exc:
             _fail(str(exc))
         except KeyboardInterrupt:
@@ -190,7 +199,10 @@ def run_app_mode(file: Path | None = None) -> None:
         # An agent host that resolves to nothing: the exclusion cannot be built,
         # and capturing without it is the amplification loop.
         _fail(str(exc))
-    sessions = [CaptureSession(cfg, endpoint=endpoint, log_frames=log_frames) for cfg in interfaces]
+    sessions = [
+        CaptureSession(cfg, endpoint=endpoint, log_frames=log_frames, frame_snaplen=frame_snaplen)
+        for cfg in interfaces
+    ]
     for session in sessions:
         packet_actions.CAPTURES[session.name] = session
 

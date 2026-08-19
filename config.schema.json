@@ -72,9 +72,16 @@
     "log_frames": {
       "type": "boolean",
       "title": "Log Raw Frames",
-      "description": "Populate the 'frame' Binary column with the captured bytes (up to the snapshot length). Turn it off to keep only decoded header fields, which makes traces far smaller.",
+      "description": "Populate the 'frame' Binary column with the captured bytes (up to the frame storage limit). Turn it off to keep only decoded header fields, which makes traces far smaller.",
       "default": true,
       "ui:widget": "toggle"
+    },
+    "frame_snaplen": {
+      "type": ["integer", "null"],
+      "title": "Frame Storage Limit (bytes)",
+      "description": "Bytes of each packet stored in the 'frame' column. Storage only: dissection always reads every captured byte, so the decoded columns are the same whatever this is set to, and 'orig_len'/'cap_len'/'truncated' keep describing capture truncation rather than this limit. null (the default) stores every captured byte, so the snapshot length is the single byte budget and the control plane stays byte-complete in the frame column - Modbus-TCP, DHCP, DNS/mDNS. Set a number to store only a prefix and shrink traces.",
+      "default": null,
+      "minimum": 1
     },
     "log_level": {
       "type": "string",

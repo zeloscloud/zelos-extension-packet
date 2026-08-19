@@ -16,6 +16,7 @@ Live capture needs elevated privileges. **Run the `Check permissions` action fir
 | `exclude_agent_traffic` | `true` | Leave on: rows are published to the agent over the network, so capturing that traffic feeds the extension its own output, and a row is bigger than the packet that made it - the loop amplifies. |
 | `replay_pcap` | - | Decode a `.pcap`/`.pcapng` instead of capturing. Zero privileges; interfaces are ignored. |
 | `log_frames` | `true` | Populate the `frame` Binary column with captured bytes. |
+| `frame_snaplen` | `null` | Bytes of each packet **stored** in `frame`; `null` stores every captured byte, so `snaplen` (512) is the single byte budget and the control plane stays byte-complete. Storage only - dissection always reads the full captured bytes, so decoded columns and `orig_len`/`cap_len`/`truncated` are unaffected. |
 | `log_level` | `INFO` | |
 
 ## Actions

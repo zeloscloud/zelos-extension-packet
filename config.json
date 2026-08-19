@@ -2,5 +2,6 @@
   "interfaces": [],
   "exclude_agent_traffic": true,
   "log_frames": true,
+  "frame_snaplen": null,
   "log_level": "INFO"
 }

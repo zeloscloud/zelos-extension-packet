@@ -73,6 +73,16 @@ class TestExclusionParameters:
         assert capture.kwargs["log_frames"] is False
         assert capture.started
 
+    def test_frame_snaplen_defaults_to_store_everything_captured(self, fake_packet):
+        """The extension's byte budget is `snaplen` alone: by default every
+        captured byte is stored (`frame_snaplen=None`), so the 512 control-plane
+        rationale holds end-to-end. An explicit cap must survive to the core."""
+        session(endpoint=ENDPOINT).start()
+        session(endpoint=ENDPOINT, frame_snaplen=128).start()
+        default, capped = FakeCapture.instances
+        assert (default.kwargs["snaplen"], default.kwargs["frame_snaplen"]) == (512, None)
+        assert capped.kwargs["frame_snaplen"] == 128
+
     def test_our_own_trace_source_is_handed_to_the_core(self, fake_packet):
         # This is what makes the catalog read `eth0.pkt.src_ip` instead of
         # everything landing in the package's default `pkt` source.

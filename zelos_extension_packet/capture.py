@@ -27,6 +27,12 @@ logger = logging.getLogger(__name__)
 DEFAULT_SNAPLEN = 512
 DEFAULT_BUFFER_SIZE = 8 * 1024 * 1024
 DEFAULT_PROMISCUOUS = False
+#: Bytes of each packet stored in the `frame` column. `None` stores every
+#: captured byte, deliberately diverging from `zelos_packet`'s 256 default:
+#: the extension already bounds its byte budget with `DEFAULT_SNAPLEN` (512,
+#: chosen to keep the control plane byte-complete), and storing less than we
+#: capture would defeat that rationale.
+DEFAULT_FRAME_SNAPLEN: int | None = None
 
 #: Catalog path separators. A VLAN interface is literally named `eth0.100`, so
 #: this is not hypothetical: an unsanitized name breaks `agent.latest` lookups.
@@ -46,15 +52,20 @@ STATS_FIELDS = (
     "fallback_timestamps",
 )
 
-#: `zelos_packet.Metrics` getters worth reporting alongside them:
-#: `packets_filtered` is whether the agent-traffic exclusion is doing anything,
-#: and `emit_stall_ms` is the downstream-backpressure signal to weigh against
-#: `decode_stall_ms`.
+#: Every `zelos_packet.Metrics` getter except `emit_stall_ns` (redundant with
+#: the `_ms` form). Complete on purpose: this feeds a diagnostic action, and
+#: `flush_errors`/`drain_abandoned` are the only in-band signal of the two
+#: warn-only loss windows (each flush_error may be up to 255 rows).
 METRICS_FIELDS = (
     "packets_received",
     "packets_emitted",
     "packets_filtered",
+    "packets_truncated",
+    "bytes_captured",
+    "stats_rows_emitted",
     "emit_errors",
+    "flush_errors",
+    "drain_abandoned",
     "emit_stall_ms",
 )
 
@@ -295,6 +306,7 @@ class CaptureSession:
     config: InterfaceConfig
     endpoint: AgentEndpoint | None = None
     log_frames: bool = True
+    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN
     _capture: Any = field(default=None, init=False, repr=False)
     _source: Any = field(default=None, init=False, repr=False)
 
@@ -331,6 +343,7 @@ class CaptureSession:
             self._capture = pkg.module().PacketCapture(
                 source=self._source,
                 log_frames=self.log_frames,
+                frame_snaplen=self.frame_snaplen,
                 **self.capture_kwargs(),
             )
             self._capture.start()
@@ -346,6 +359,12 @@ class CaptureSession:
                 ) from exc
             raise
 
+        if not self.log_frames:
+            frames = "off"
+        elif self.frame_snaplen is None:
+            frames = "whole frame"
+        else:
+            frames = f"first {self.frame_snaplen} B"
         logger.info(
             "Capturing %s as source %r (snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
             self.config.interface,
@@ -353,7 +372,7 @@ class CaptureSession:
             self.config.snaplen,
             self.config.promiscuous,
             self.config.buffer_size,
-            "on" if self.log_frames else "off",
+            frames,
         )
 
     def stats(self) -> dict[str, Any]:
@@ -416,7 +435,12 @@ def list_interfaces() -> list[dict[str, Any]]:
 
 
 def make_decoder(
-    name: str, *, log_frames: bool = True, namespace: Any = None, cached: bool = True
+    name: str,
+    *,
+    log_frames: bool = True,
+    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN,
+    namespace: Any = None,
+    cached: bool = True,
 ) -> Any:
     """A ``PacketDecoder`` emitting into `namespace` under a sanitized `name`.
 
@@ -426,10 +450,18 @@ def make_decoder(
     they genuinely disagree on - see `make_trace_source`.
     """
     source = make_trace_source(sanitize_source_name(name), namespace, cached=cached)
-    return pkg.module().PacketDecoder(source=source, log_frames=log_frames)
+    return pkg.module().PacketDecoder(
+        source=source, log_frames=log_frames, frame_snaplen=frame_snaplen
+    )
 
 
-def replay_pcap(path: str | Path, *, name: str = "pcap", log_frames: bool = True) -> dict[str, Any]:
+def replay_pcap(
+    path: str | Path,
+    *,
+    name: str = "pcap",
+    log_frames: bool = True,
+    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN,
+) -> dict[str, Any]:
     """Decode a pcap/pcapng into the *live* trace namespace. No privileges required.
 
     This is the streaming path: rows go wherever `zelos_sdk.init()` pointed them.
@@ -441,7 +473,7 @@ def replay_pcap(path: str | Path, *, name: str = "pcap", log_frames: bool = True
         raise ConfigError(f"Replay file not found: {pcap}")
 
     logger.info("Replaying %s into source %r", pcap, sanitize_source_name(name))
-    decoder = make_decoder(name, log_frames=log_frames)
+    decoder = make_decoder(name, log_frames=log_frames, frame_snaplen=frame_snaplen)
     count = decoder.convert_file(str(pcap))
     decoder.flush()
     logger.info("Replay of %s complete: %d packets", pcap.name, count)
@@ -498,8 +530,11 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
         pkg.module().PacketCapture(interface=target, snaplen=64, log_frames=False)
     except Exception as exc:
         if pkg.is_permission_error(exc):
+            # str(exc) embeds the package's own remediation block; keep only
+            # its first line so callers printing reason + remediation don't
+            # show the instructions twice.
             return denied(
-                f"Capture on {target!r} was denied: {exc}",
+                f"Capture on {target!r} was denied: {str(exc).splitlines()[0]}",
                 target,
                 remediation=remediation_text(target),
             )

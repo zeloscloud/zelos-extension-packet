@@ -95,7 +95,8 @@ class FakeCapture:
         buffer_bytes=2 * 1024 * 1024,
         immediate=False,
         source_name="pkt",
-        log_frames=False,
+        log_frames=True,
+        frame_snaplen=256,
         stats_interval=1.0,
         exclude_agent_addrs=None,
         exclude_agent_port=None,
@@ -109,6 +110,7 @@ class FakeCapture:
             "immediate": immediate,
             "source_name": source_name,
             "log_frames": log_frames,
+            "frame_snaplen": frame_snaplen,
             "stats_interval": stats_interval,
             "exclude_agent_addrs": exclude_agent_addrs,
             "exclude_agent_port": exclude_agent_port,
@@ -140,12 +142,17 @@ class FakeCapture:
         )
 
     def metrics(self) -> SimpleNamespace:
-        """Mirrors `zelos_packet.Metrics`."""
+        """Mirrors `zelos_packet.Metrics` (all 11 getters)."""
         return SimpleNamespace(
             packets_received=12,
             packets_emitted=9,
             packets_filtered=3,
+            packets_truncated=1,
+            bytes_captured=1024,
+            stats_rows_emitted=2,
             emit_errors=0,
+            flush_errors=0,
+            drain_abandoned=0,
             emit_stall_ns=0,
             emit_stall_ms=0.0,
         )
@@ -161,8 +168,8 @@ class FakeDecoder:
         self,
         source_name="pkt",
         iface=None,
-        snaplen=0,
-        log_frames=False,
+        log_frames=True,
+        frame_snaplen=256,
         emit_schemas_on_init=False,
         source=None,
         exclude_agent_addrs=None,
@@ -171,8 +178,8 @@ class FakeDecoder:
         self.kwargs = {
             "source_name": source_name,
             "iface": iface,
-            "snaplen": snaplen,
             "log_frames": log_frames,
+            "frame_snaplen": frame_snaplen,
             "emit_schemas_on_init": emit_schemas_on_init,
             "source": source,
             "exclude_agent_addrs": exclude_agent_addrs,

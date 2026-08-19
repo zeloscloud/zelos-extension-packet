@@ -17,6 +17,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+    # RELEASE GATE: bump to >=0.0.11 when zelos-sdk 0.0.11 final publishes.
+    # The convert path requires the SDK's evt_flush ABI slot (0.0.11+) and
+    # raises SlotUnavailable on older SDKs; >=0.0.11 is unresolvable today
+    # (PyPI has only 0.0.11a0, excluded as a prerelease).
     "zelos-sdk>=0.0.10",
     "rich-click>=1.8.0",
     # Rust-cored capture + decode. Live capture is Linux (AF_PACKET) and macOS
