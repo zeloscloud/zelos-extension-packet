@@ -1,0 +1,6 @@
+{
+  "interfaces": [],
+  "exclude_agent_traffic": true,
+  "log_frames": true,
+  "log_level": "INFO"
+}

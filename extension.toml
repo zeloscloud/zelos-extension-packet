@@ -1,0 +1,36 @@
+# Zelos Packet Capture Extension Manifest
+# See https://docs.zeloscloud.io/sdk/how-to/develop-extensions/ for full documentation
+
+name = "Packet Capture"
+version = "0.0.1"
+description = "Live network packet capture and pcap decode for Zelos"
+author = "Zelos"
+repository = "https://github.com/zeloscloud/zelos-extension-packet"
+homepage = "https://github.com/zeloscloud/zelos-extension-packet"
+keywords = ["packet", "pcap", "network", "ethernet", "tcpdump", "sniffer"]
+categories = ["Networking", "Industrial", "IoT"]
+
+# File references (relative paths in archive)
+readme = "README.md"
+changelog = "CHANGELOG.md"
+
+# Compatibility floor: 26.0.4 is the first release whose extension host ships the
+# config/actions surface this extension relies on (same floor as zelos-extension-can).
+[zelos]
+version = ">=26.0.4"
+
+# Configuration schema (enables UI in Zelos App)
+[config]
+schema = "config.schema.json"
+
+# Runtime configuration
+[runtime]
+type = "python"
+entry = "main.py"
+python_version = "3.11"
+
+# Stopping tears down every capture handle and lets the SDK's atexit hook drain
+# the trace pipeline; 15s leaves room for a busy interface's final flush before
+# the supervisor escalates to SIGKILL.
+[stop]
+grace_seconds = 15

@@ -1,0 +1,46 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments / uv state
+.venv/
+.uv/
+.venv*/
+
+# Tooling caches
+.ty_cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+zelos-extension-packet-v*.tar.gz
+scripts/__pycache__/
+
+# Captures and traces (never commit binary fixtures - tests generate them)
+*.pcap
+*.pcapng
+*.trz
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# OS / editor junk
+.DS_Store
+.idea/
+.vscode/
+
+# Zelos
+.last_config
+.uploaded.*

@@ -1,0 +1,102 @@
+[project]
+name = "zelos-extension-packet"
+version = "0.0.1"
+description = "Live network packet capture and pcap decode for Zelos"
+authors = [{ name = "zeloscloud", email = "info@zeloscloud.io" }]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+keywords = ["zelos", "extension", "packet", "pcap", "network"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "zelos-sdk>=0.0.10",
+    "rich-click>=1.8.0",
+    # Rust-cored capture + decode. Live capture is Linux (AF_PACKET) and macOS
+    # (/dev/bpf) only in this release; the decode path is portable, so there is
+    # no sys_platform marker here.
+    #
+    # Pinned `==`: this extension calls the native API directly, with no
+    # keyword- or method-alias shims, so the two ship in lockstep.
+    "zelos-packet==0.0.1",
+]
+
+[project.scripts]
+zelos-extension-packet = "main:cli"
+
+[project.urls]
+Homepage = "https://github.com/zeloscloud/zelos-extension-packet"
+Repository = "https://github.com/zeloscloud/zelos-extension-packet"
+Issues = "https://github.com/zeloscloud/zelos-extension-packet/issues"
+Documentation = "https://docs.zeloscloud.io/extensions"
+
+[project.optional-dependencies]
+# Progress bars for `convert`. Soft: absent tqdm logs an install hint and the
+# conversion runs unchanged.
+cli = [
+    "tqdm>=4.0.0",
+]
+dev = [
+    "pytest>=8.4.2",
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.2",
+    "jsonschema>=4.0.0",
+]
+
+[tool.uv.sources]
+# Local development only: resolve `zelos-packet` to the in-tree build rather
+# than a published wheel. Adjust the path if your monorepo checkout differs.
+#
+# uv honours this whenever uv is the resolver - including the extension host -
+# so `scripts/package_extension.py` strips this whole table (comments included)
+# out of the pyproject it archives. Keep the comments inside the table.
+# worktree path until zelos-packet merges to main; then ../src/api/py/zelos-packet
+zelos-packet = { path = "../src/.claude/worktrees/zelos-packet/api/py/zelos-packet", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["zelos_extension_packet"]
+
+# `main.py` is the extension entry point *and* the console script's module
+# (`main:cli`), so the wheel has to carry it alongside the package.
+[tool.hatch.build.targets.wheel.force-include]
+"main.py" = "main.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--log-cli-level=INFO"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "PTH",  # flake8-use-pathlib
+]
+ignore = [
+    "B008",   # function call in defaults (common in decorators)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["PTH123"]  # Allow open() in scripts
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
