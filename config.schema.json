@@ -16,7 +16,8 @@
           "interface": {
             "type": "string",
             "title": "Interface",
-            "description": "Name of the network interface to capture on (eth0, en0, wlan0, lo, ...). This field is free text because the interface list is specific to the machine running the agent and cannot be enumerated by a static schema - run the 'List interfaces' action to see what is available there, then paste the name in.",
+            "description": "Network interface to capture on (eth0, en0, wlan0, lo, ...). Pick a device from the list, or type a name - the list comes from the machine running the agent and appears once the extension has run there at least once.",
+            "ui:widget": "interface-picker",
             "ui:placeholder": "eth0"
           },
           "name": {

@@ -35,9 +35,11 @@ def _available_captures(*_args: Any) -> list[str]:
 
 @action(
     "List Interfaces",
-    "Network interfaces on the machine running the agent. The config's "
-    "'Interface' field is free text because a static schema cannot enumerate "
-    "NICs - run this, then paste a name in.",
+    "Network interfaces on the machine running the agent. Backs the config's "
+    "'Interface' picker, which also accepts a name typed by hand.",
+    # Enumerating NICs opens no capture handle and needs no privileges, and the
+    # config picker wants the list before the extension has ever run.
+    standalone=True,
 )
 def list_interfaces() -> dict[str, Any]:
     try:
