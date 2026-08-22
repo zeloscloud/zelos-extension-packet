@@ -8,7 +8,7 @@
     "interfaces": {
       "type": "array",
       "title": "Interfaces",
-      "description": "Interfaces to capture from, in parallel. Each one becomes its own trace source. Leave empty when using Replay PCAP File.",
+      "description": "Interfaces to capture from, in parallel. They share the one 'packet' trace source and appear side by side under it, one branch per capture. Leave empty when using Replay PCAP File.",
       "items": {
         "title": "Interface",
         "type": "object",
@@ -23,7 +23,7 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Trace source name for this interface; catalog paths read <name>.pkt.<field>. Defaults to the interface name. Dots, colons and '@' are replaced with '_' because they are catalog path separators.",
+            "description": "Names this capture in the catalog: paths read packet.<name>/packets.<field> and packet.<name>/stats.<field>. Defaults to the interface name, which is usually what you want. Dots, colons, '@' and '/' are replaced with '_' because they are catalog path separators, so a VLAN device eth0.100 becomes eth0_100. Every capture shares the one 'packet' source, so each name must be unique.",
             "ui:placeholder": "defaults to the interface name"
           },
           "snaplen": {

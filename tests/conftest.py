@@ -12,6 +12,7 @@ Two things live here:
 
 from __future__ import annotations
 
+import re
 import struct
 from pathlib import Path
 from types import SimpleNamespace
@@ -94,13 +95,14 @@ class FakeCapture:
         promiscuous=False,
         buffer_bytes=2 * 1024 * 1024,
         immediate=False,
-        source_name="pkt",
+        source_name="packet",
         log_frames=True,
         frame_snaplen=256,
         stats_interval=1.0,
         exclude_agent_addrs=None,
         exclude_agent_port=None,
         source=None,
+        name=None,
     ):
         self.kwargs = {
             "interface": interface,
@@ -109,6 +111,7 @@ class FakeCapture:
             "buffer_bytes": buffer_bytes,
             "immediate": immediate,
             "source_name": source_name,
+            "name": name,
             "log_frames": log_frames,
             "frame_snaplen": frame_snaplen,
             "stats_interval": stats_interval,
@@ -166,7 +169,8 @@ class FakeDecoder:
 
     def __init__(
         self,
-        source_name="pkt",
+        name="capture",
+        source_name="packet",
         iface=None,
         log_frames=True,
         frame_snaplen=256,
@@ -176,6 +180,7 @@ class FakeDecoder:
         exclude_agent_port=None,
     ):
         self.kwargs = {
+            "name": name,
             "source_name": source_name,
             "iface": iface,
             "log_frames": log_frames,
@@ -227,13 +232,21 @@ class FakeTraceSource:
     one a caller asked for needs it visible.
     """
 
-    def __init__(self, name: str, namespace=None, *, cached: bool = True) -> None:
-        self.name = name
+    def __init__(self, namespace=None, *, cached: bool = True) -> None:
+        self.name = "packet"
         self.namespace = namespace
         self.cached = cached
 
 
 FAKE_REMEDIATION = "fake native remediation: do the thing"
+
+
+def fake_sanitize_name(raw: str) -> str:
+    """`zelos_packet.sanitize_name`, restated. Same rule as the Rust one
+    (`schema.rs::sanitize_event_prefix`) so a test that stubs the package
+    still exercises the naming the real package would produce."""
+    cleaned = re.sub(r"[.:@/\s]+", "_", raw.strip()).strip("_")
+    return cleaned or "capture"
 
 
 def make_fake_module(*, capture_cls=FakeCapture, interfaces=None) -> SimpleNamespace:
@@ -269,6 +282,7 @@ def make_fake_module(*, capture_cls=FakeCapture, interfaces=None) -> SimpleNames
         list_interfaces=lambda: list(ifaces),
         capture_supported=lambda: True,
         permission_remediation=lambda: FAKE_REMEDIATION,
+        sanitize_name=fake_sanitize_name,
     )
 
 

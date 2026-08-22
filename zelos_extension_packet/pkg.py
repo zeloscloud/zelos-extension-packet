@@ -81,6 +81,21 @@ def permission_remediation() -> str:
     return str(module().permission_remediation()) if available() else ""
 
 
+def sanitize_name(name: str) -> str | None:
+    """The package's own capture-name rule, or `None` when it is unavailable.
+
+    The package applies this to every name it is given, and the extension uses
+    the result to reject duplicates before constructing anything - so the two
+    must agree on which names collide. Asking the package is how they stay in
+    agreement; `capture.sanitize_capture_name` carries the fallback for when it
+    cannot be reached.
+    """
+    if not available():
+        return None
+    fn = getattr(module(), "sanitize_name", None)
+    return str(fn(name)) if fn is not None else None
+
+
 def is_permission_error(exc: BaseException) -> bool:
     """Whether `exc` means "the OS refused to give us a capture handle".
 

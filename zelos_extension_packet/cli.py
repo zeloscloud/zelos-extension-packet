@@ -297,7 +297,7 @@ def capture_cmd(
 
       zelos-extension-packet capture eth0 eth1 --snaplen 1518 --file
     """
-    # Through `parse_interfaces` so the CLI gets the same duplicate-source-name
+    # Through `parse_interfaces` so the CLI gets the same duplicate-name
     # check as app mode: `capture eth0.1 eth0:1` sanitizes to one name.
     try:
         configs = parse_interfaces(
@@ -358,7 +358,11 @@ def capture_cmd(
 
 @click.command("replay")
 @click.argument("pcap", type=click.Path(exists=True, path_type=Path))
-@click.option("--name", default="", help="Trace source name (default: the file stem).")
+@click.option(
+    "--name",
+    default="",
+    help="Names the capture branch: packet.<name>/packets (default: the file stem).",
+)
 @click.option("--no-frames", is_flag=True, help="Do not populate the `frame` Binary column.")
 @click.option(
     "--file",
@@ -375,15 +379,15 @@ def replay_cmd(pcap: Path, name: str, no_frames: bool, file: Path | None) -> Non
         raise click.ClickException(pkg.skip_reason())
 
     output_file = _resolve_output_file(file)
-    source_name = name or pcap.stem
+    capture_name = name or pcap.stem
     _install_replay_shutdown()
     try:
         if output_file:
             logger.info("Recording trace to: %s", output_file)
             with zelos_sdk.TraceWriter(str(output_file)):
-                replay_pcap(pcap, name=source_name, log_frames=not no_frames)
+                replay_pcap(pcap, name=capture_name, log_frames=not no_frames)
         else:
-            replay_pcap(pcap, name=source_name, log_frames=not no_frames)
+            replay_pcap(pcap, name=capture_name, log_frames=not no_frames)
     except KeyboardInterrupt:
         logger.warning("Replay of %s stopped before it finished", pcap)
 

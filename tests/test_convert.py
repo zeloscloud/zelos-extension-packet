@@ -105,7 +105,7 @@ class TestRealPackage:
             )
             table = pa.ipc.open_stream(result.to_arrow()).read_all()
 
-        assert event.name == "pkt"
+        assert event.name == "sample/packets"
         assert table.num_rows == 3
 
     @needs_real_packet

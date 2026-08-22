@@ -83,13 +83,16 @@ class TestExclusionParameters:
         assert (default.kwargs["snaplen"], default.kwargs["frame_snaplen"]) == (512, None)
         assert capped.kwargs["frame_snaplen"] == 128
 
-    def test_our_own_trace_source_is_handed_to_the_core(self, fake_packet):
-        # This is what makes the catalog read `eth0.pkt.src_ip` instead of
-        # everything landing in the package's default `pkt` source.
+    def test_the_shared_source_and_a_per_capture_name_reach_the_core(self, fake_packet):
+        # Together these make the catalog read `packet.eth0/packets.src_ip`.
+        # The source has to be OUR shared one — letting the package default
+        # would build a second source also named `packet`, which nothing
+        # rejects and which hides one of the two from path resolution.
         s = session(interface="eth0", name="eth0", endpoint=ENDPOINT)
         s.start()
         [capture] = FakeCapture.instances
-        assert capture.kwargs["source"].name == "eth0"
+        assert capture.kwargs["source"].name == "packet"
+        assert capture.kwargs["name"] == "eth0"
 
     def test_stats_use_the_packages_counter_names(self, fake_packet):
         s = session(endpoint=ENDPOINT)

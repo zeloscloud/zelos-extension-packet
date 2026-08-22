@@ -18,7 +18,7 @@ from zelos_extension_packet.capture import (
     DEFAULT_SNAPLEN,
     ConfigError,
     parse_interfaces,
-    sanitize_source_name,
+    sanitize_capture_name,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -92,7 +92,7 @@ class TestParseInterfaces:
 
     def test_vlan_interface_name_is_sanitized(self):
         # `eth0.100` is a real VLAN interface name and `.` is a catalog path
-        # separator, so the source name must not carry it through.
+        # separator, so the capture name must not carry it through.
         [cfg] = parse_interfaces({"interfaces": [{"interface": "eth0.100"}]})
         assert cfg.interface == "eth0.100"
         assert cfg.name == "eth0_100"
@@ -101,8 +101,8 @@ class TestParseInterfaces:
         with pytest.raises(ConfigError, match="missing 'interface'"):
             parse_interfaces({"interfaces": [{"name": "nope"}]})
 
-    def test_duplicate_source_names_are_a_hard_error(self):
-        with pytest.raises(ConfigError, match="Duplicate trace source name"):
+    def test_duplicate_capture_names_are_a_hard_error(self):
+        with pytest.raises(ConfigError, match="Duplicate capture name"):
             parse_interfaces(
                 {
                     "interfaces": [
@@ -113,14 +113,14 @@ class TestParseInterfaces:
             )
 
     def test_names_that_collide_only_after_sanitizing_are_still_caught(self):
-        with pytest.raises(ConfigError, match="Duplicate trace source name"):
+        with pytest.raises(ConfigError, match="Duplicate capture name"):
             parse_interfaces({"interfaces": [{"interface": "eth0.1"}, {"interface": "eth0:1"}]})
 
     def test_missing_interfaces_key_is_empty(self):
         assert parse_interfaces({}) == []
 
 
-class TestSanitizeSourceName:
+class TestSanitizeCaptureName:
     @pytest.mark.parametrize(
         ("raw", "expected"),
         [
@@ -128,8 +128,9 @@ class TestSanitizeSourceName:
             ("eth0.100", "eth0_100"),
             ("user@host:iface", "user_host_iface"),
             ("  en0  ", "en0"),
-            ("...", "packet"),
+            ("a/b", "a_b"),
+            ("...", "capture"),
         ],
     )
     def test_path_separators_collapse(self, raw: str, expected: str):
-        assert sanitize_source_name(raw) == expected
+        assert sanitize_capture_name(raw) == expected

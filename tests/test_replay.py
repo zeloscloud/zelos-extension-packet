@@ -32,7 +32,7 @@ class TestReplay:
         assert result["packets"] == 3
         assert result["file"] == str(sample_pcap)
 
-    def test_source_name_is_sanitized(self, fake_packet, tmp_path: Path):
+    def test_the_capture_name_is_sanitized(self, fake_packet, tmp_path: Path):
         from .conftest import _udp_packet, write_pcap
 
         pcap = write_pcap(
@@ -40,8 +40,9 @@ class TestReplay:
         )
         decoders = spy_on_decoder(fake_packet)
         replay_pcap(pcap, name="eth0.100")
-        # Dots are catalog path separators, so they never reach a source name.
-        assert decoders[0].kwargs["source"].name == "eth0_100"
+        # Dots are catalog path separators, so they never reach an event name.
+        assert decoders[0].kwargs["name"] == "eth0_100"
+        assert decoders[0].kwargs["source"].name == "packet"
 
     def test_log_frames_is_forwarded(self, fake_packet, sample_pcap: Path):
         decoders = spy_on_decoder(fake_packet)

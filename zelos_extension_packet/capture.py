@@ -2,8 +2,12 @@
 
 One :class:`CaptureSession` per configured interface, each backed by a
 ``zelos_packet.PacketCapture`` whose Rust core owns the emit path. The session
-is the Start/Stop granularity the supervisor drives, and the trace-source
-granularity the catalog shows (``eth0.pkt.src_ip``).
+is the Start/Stop granularity the supervisor drives.
+
+Every session writes into ONE trace source, ``packet``, and is told apart by
+its name, which becomes the prefix of its two events - so the catalog reads
+``packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields, and a field is
+addressed ``packet.eth0/packets.src_ip``.
 """
 
 from __future__ import annotations
@@ -34,9 +38,19 @@ DEFAULT_PROMISCUOUS = False
 #: capture would defeat that rationale.
 DEFAULT_FRAME_SNAPLEN: int | None = None
 
+#: The one trace source every capture writes into. Sessions are told apart by
+#: their event-name prefix, not by source; see the module docstring.
+PACKET_SOURCE_NAME = "packet"
+
 #: Catalog path separators. A VLAN interface is literally named `eth0.100`, so
 #: this is not hypothetical: an unsanitized name breaks `agent.latest` lookups.
-_PATH_SEPARATORS = re.compile(r"[.:@\s]+")
+#: `/` is here too - it would graft extra levels onto the tree under `packet`.
+#:
+#: Fallback only. `zelos_packet.sanitize_name` is the single home for the rule
+#: (`sanitize_capture_name` prefers it); this keeps config parsing working when
+#: the native package is not importable, which is when a user most needs a
+#: legible config error rather than a second failure.
+_PATH_SEPARATORS = re.compile(r"[.:@/\s]+")
 
 #: `zelos_packet.CaptureStats` getters, in full.
 STATS_FIELDS = (
@@ -95,15 +109,24 @@ class InterfaceConfig:
     buffer_size: int = DEFAULT_BUFFER_SIZE
 
 
-def sanitize_source_name(raw: str) -> str:
-    """Make `raw` safe as a trace source name.
+def sanitize_capture_name(raw: str) -> str:
+    """Make `raw` safe as a capture's event-name prefix.
 
-    Dots, colons and '@' are catalog *path separators* in Zelos, so an interface
-    named `eth0.100` (a VLAN) would otherwise produce a source that cannot be
-    addressed. Collapse them to '_'.
+    Dots, colons, '@' and '/' are catalog *path separators* in Zelos, so an
+    interface named `eth0.100` (a VLAN) would otherwise produce events that
+    cannot be addressed. Collapse them to '_'.
+
+    Defers to `zelos_packet.sanitize_name`: the package applies the rule to
+    whatever name it is handed, and this result is what `parse_interfaces` uses
+    to reject duplicates, so a disagreement would let two captures collide on
+    one event name. The regex below is the fallback for a machine where the
+    package is not importable.
     """
+    native = pkg.sanitize_name(raw)
+    if native is not None:
+        return native
     cleaned = _PATH_SEPARATORS.sub("_", raw.strip()).strip("_")
-    return cleaned or "packet"
+    return cleaned or "capture"
 
 
 def parse_interfaces(config: dict) -> list[InterfaceConfig]:
@@ -113,10 +136,11 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
     which never go through `load_config` - get identical behaviour.
 
     Raises:
-        ConfigError: on a missing interface name or a duplicate source name.
-        Duplicates are a hard error rather than a silent rename: two sources
-        with one name would interleave into a single catalog path and quietly
-        corrupt both.
+        ConfigError: on a missing interface name or a duplicate capture name.
+        Duplicates are a hard error rather than a silent rename: the sessions
+        share one trace source, and event registration there is strict-create,
+        so a duplicate would fail at Start with a native error naming an event
+        rather than here naming the config field that caused it.
     """
     entries = config.get("interfaces") or []
     if not isinstance(entries, list):
@@ -138,13 +162,13 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
             )
 
         raw_name = str(entry.get("name") or "").strip() or interface
-        name = sanitize_source_name(raw_name)
+        name = sanitize_capture_name(raw_name)
         if name != raw_name:
-            logger.info("Trace source name %r sanitized to %r", raw_name, name)
+            logger.info("Capture name %r sanitized to %r", raw_name, name)
 
         if name in seen:
             raise ConfigError(
-                f"Duplicate trace source name {name!r} (interfaces {seen[name]!r} "
+                f"Duplicate capture name {name!r} (interfaces {seen[name]!r} "
                 f"and {interface!r}). Give each interface a unique 'name'."
             )
         seen[name] = interface
@@ -275,12 +299,22 @@ def remediation_text(
 # ─── Capture session ────────────────────────────────────────────────────────
 
 
-def make_trace_source(name: str, namespace: Any = None, *, cached: bool = True) -> Any:
-    """One ``zelos_sdk`` source per capture, named after the interface.
+#: The live namespace's shared `packet` source, built on first use. See
+#: :func:`make_trace_source`.
+_live_source: Any = None
 
-    The Rust core writes its ``pkt`` event into whatever source it is handed,
-    so supplying our own is what makes the catalog read ``eth0.pkt.src_ip``
-    instead of everything landing in the package's default ``pkt`` source.
+
+def make_trace_source(namespace: Any = None, *, cached: bool = True) -> Any:
+    """The ``packet`` source every capture in this process writes into.
+
+    ONE object, not one per session. Two `TraceSource`s under one name is not
+    a duplicate-name error - `TraceNamespace` keys its registry by UUID, so
+    both register, and the query layer's `by_path` resolution then buckets them
+    together and keeps only the newest, silently hiding the other's rows. It
+    also defeats the duplicate-event guard, which is per-source: two same-named
+    sources will each accept ``eth0/packets`` without complaint. Sessions are
+    kept apart by their event-name prefix instead, which `parse_interfaces`
+    guarantees is unique.
 
     ``cached`` picks the source type, and it is a throughput decision. A
     ``TraceSourceCache`` keeps last-value navigation available, which live
@@ -291,12 +325,23 @@ def make_trace_source(name: str, namespace: Any = None, *, cached: bool = True) 
     logged, 2870 ns/packet cached vs 801 plain.
 
     `namespace` of None is the global namespace `zelos_sdk.init()` set up - the
-    live path. Conversion passes its own, so nothing it decodes reaches an agent.
+    live path, and the only one that shares. Conversion passes its own
+    namespace and gets its own source, so nothing it decodes reaches an agent
+    and nothing is retained after it finishes.
     """
     import zelos_sdk
 
     factory = zelos_sdk.TraceSourceCache if cached else zelos_sdk.TraceSource
-    return factory(name, namespace=namespace)
+    if namespace is not None:
+        return factory(PACKET_SOURCE_NAME, namespace=namespace)
+
+    # The first live caller's `cached` choice wins for the rest of the
+    # process. Every live caller asks for a cache today; forking a second
+    # source to honor a different answer is the failure this exists to stop.
+    global _live_source
+    if _live_source is None:
+        _live_source = factory(PACKET_SOURCE_NAME, namespace=None)
+    return _live_source
 
 
 @dataclass
@@ -323,6 +368,9 @@ class CaptureSession:
         """
         return {
             "interface": self.config.interface,
+            # Prefixes this capture's two events, which is what keeps several
+            # sessions on the one shared source from colliding.
+            "name": self.config.name,
             "snaplen": self.config.snaplen,
             "promiscuous": self.config.promiscuous,
             "buffer_bytes": self.config.buffer_size,
@@ -339,7 +387,7 @@ class CaptureSession:
         background thread.
         """
         try:
-            self._source = make_trace_source(self.config.name)
+            self._source = make_trace_source()
             self._capture = pkg.module().PacketCapture(
                 source=self._source,
                 log_frames=self.log_frames,
@@ -366,8 +414,9 @@ class CaptureSession:
         else:
             frames = f"first {self.frame_snaplen} B"
         logger.info(
-            "Capturing %s as source %r (snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
+            "Capturing %s into %s.%s/packets (snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
             self.config.interface,
+            PACKET_SOURCE_NAME,
             self.config.name,
             self.config.snaplen,
             self.config.promiscuous,
@@ -444,14 +493,21 @@ def make_decoder(
 ) -> Any:
     """A ``PacketDecoder`` emitting into `namespace` under a sanitized `name`.
 
+    Rows land at ``packet.{name}/packets.<field>``: the decoder shares the
+    ``packet`` source with every live capture and is told apart by `name`,
+    exactly as a capture is.
+
     Shared by replay (global namespace, streaming to an agent) and by
     `converter` (its own namespace, writing a file), so the two cannot drift
-    apart on source naming or constructor keywords. `cached` is the one thing
-    they genuinely disagree on - see `make_trace_source`.
+    apart on naming or constructor keywords. `cached` is the one thing they
+    genuinely disagree on - see `make_trace_source`.
     """
-    source = make_trace_source(sanitize_source_name(name), namespace, cached=cached)
+    source = make_trace_source(namespace, cached=cached)
     return pkg.module().PacketDecoder(
-        source=source, log_frames=log_frames, frame_snaplen=frame_snaplen
+        name=sanitize_capture_name(name),
+        source=source,
+        log_frames=log_frames,
+        frame_snaplen=frame_snaplen,
     )
 
 
@@ -472,7 +528,9 @@ def replay_pcap(
     if not pcap.exists():
         raise ConfigError(f"Replay file not found: {pcap}")
 
-    logger.info("Replaying %s into source %r", pcap, sanitize_source_name(name))
+    logger.info(
+        "Replaying %s into %s.%s/packets", pcap, PACKET_SOURCE_NAME, sanitize_capture_name(name)
+    )
     decoder = make_decoder(name, log_frames=log_frames, frame_snaplen=frame_snaplen)
     count = decoder.convert_file(str(pcap))
     decoder.flush()
@@ -523,11 +581,18 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
 
     # Construct and drop, never start: the constructor probe-opens the handle
     # (lib.rs `new`), which is the entire question here, while `start()` would
-    # register the pkt/pkt_stats schemas and leave a phantom source in the live
-    # catalog on every permission check. The default `source_name` is used, so
-    # nothing named after the probed interface is created either.
+    # register this interface's two events and leave them in the live catalog
+    # on every permission check.
+    #
+    # The shared source is passed rather than letting the package default one:
+    # defaulting would build a SECOND source named `packet` alongside the one
+    # the sessions use, which nothing rejects and which hides one of the two
+    # from `by_path` resolution. Construction registers no events, so handing
+    # over the real source costs nothing.
     try:
-        pkg.module().PacketCapture(interface=target, snaplen=64, log_frames=False)
+        pkg.module().PacketCapture(
+            interface=target, snaplen=64, log_frames=False, source=make_trace_source()
+        )
     except Exception as exc:
         if pkg.is_permission_error(exc):
             # str(exc) embeds the package's own remediation block; keep only

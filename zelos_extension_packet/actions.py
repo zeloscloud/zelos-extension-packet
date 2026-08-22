@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: Live capture sessions, keyed by trace source name. Populated by `cli.py`.
+#: Live capture sessions, keyed by capture name. Populated by `cli.py`.
 CAPTURES: dict[str, CaptureSession] = {}
 
 

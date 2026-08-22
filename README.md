@@ -1,6 +1,20 @@
 # Zelos extension for network packet capture
 
-Live capture (Linux `AF_PACKET`, macOS `/dev/bpf`) and pcap decode, powered by the Rust-cored [`zelos-packet`](https://github.com/zeloscloud/zelos) package. One trace source per interface, emitting the `pkt` event: `eth0.pkt.src_ip`, `eth0.pkt.frame`.
+Live capture (Linux `AF_PACKET`, macOS `/dev/bpf`) and pcap decode, powered by the Rust-cored [`zelos-packet`](https://github.com/zeloscloud/zelos) package.
+
+Every capture writes into one trace source, `packet`, and appears under it as its own branch:
+
+```
+packet
+├── eth0
+│   ├── packets      # one row per frame  — src_ip, dst_port, proto, frame, ...
+│   └── stats        # one row per second — kernel_drops, pps, bps, ...
+└── wlan0
+    ├── packets
+    └── stats
+```
+
+So a field is addressed `packet.eth0/packets.src_ip`.
 
 Live capture needs elevated privileges. **Run the `Check permissions` action first** - it prints the exact command for your OS. Decoding a pcap needs none.
 
@@ -9,7 +23,7 @@ Live capture needs elevated privileges. **Run the `Check permissions` action fir
 | Setting | Default | Notes |
 | --- | --- | --- |
 | `interfaces[].interface` | - | NIC name. Free text: a static schema cannot enumerate NICs, so run `List interfaces` and paste. |
-| `interfaces[].name` | interface name | Trace source name; `.`, `:`, `@` become `_` (catalog path separators). |
+| `interfaces[].name` | interface name | Names the capture's branch: `packet.<name>/packets`. Must be unique — the captures share one source. `.`, `:`, `@`, `/` become `_` (catalog path separators), so `eth0.100` reads `packet.eth0_100/packets`. |
 | `interfaces[].snaplen` | `512` | Keeps the control plane byte-complete (Modbus-TCP, DHCP, DNS/mDNS, MQTT CONNECT, DoIP, SOME/IP, PTP) while truncating bulk transfer. `128` breaks DHCP and DNS responses. |
 | `interfaces[].promiscuous` | `false` | Noise on switched networks; enable for a mirror/SPAN port or tap. |
 | `interfaces[].buffer_size` | `8388608` | Raise if `Capture stats` shows `kernel_drops` climbing. |
