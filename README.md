@@ -46,7 +46,6 @@ the workspace for a packet panel; drag **stats** for a plot.
 | `interfaces[].snaplen` | `512` | Bytes captured per packet; raise for full payloads |
 | `interfaces[].promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
 | `interfaces[].buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
-| `exclude_agent_traffic` | `true` | Leave on — capturing the agent's own traffic feeds it its own output |
 | `replay_pcap` | – | Decode a file instead of capturing |
 | `log_frames` | `true` | Store raw bytes in the `frame` column |
 | `frame_snaplen` | `null` | Bytes stored per packet; `null` stores everything captured |

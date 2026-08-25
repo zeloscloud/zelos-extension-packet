@@ -50,7 +50,16 @@ def _apply_log_level(config: dict) -> None:
 
 
 def _resolve_exclusion(config: dict, interfaces: list[InterfaceConfig]) -> AgentEndpoint | None:
-    """Resolve the agent endpoint to exclude, or None when the user opted out."""
+    """Resolve the agent endpoint to exclude.
+
+    `exclude_agent_traffic` is deliberately NOT in `config.schema.json`, so the
+    app cannot offer it and (`additionalProperties: false`) will not accept it.
+    Disabling exclusion on an interface that carries the agent's stream is not
+    merely noisy - a captured packet emits a row, the row is published, and the
+    publish is captured, so at a large snaplen it diverges rather than settling.
+    The knob survives here for the one case that is safe (an interface the agent
+    never touches) and for tests; nothing advertises it.
+    """
     if not config.get("exclude_agent_traffic", True):
         for iface in interfaces:
             if is_loopback_interface(iface.interface):
@@ -269,11 +278,6 @@ def check_cmd(interface: str) -> None:
 )
 @click.option("--no-frames", is_flag=True, help="Do not populate the `frame` Binary column.")
 @click.option(
-    "--no-exclude-agent",
-    is_flag=True,
-    help="Do not exclude the agent's own traffic (risks a capture/publish feedback loop).",
-)
-@click.option(
     "--file",
     type=click.Path(path_type=Path),
     default=None,
@@ -287,7 +291,6 @@ def capture_cmd(
     promiscuous: bool,
     buffer_size: int,
     no_frames: bool,
-    no_exclude_agent: bool,
     file: Path | None,
 ) -> None:
     """Capture one or more INTERFACEs without app configuration.
@@ -323,17 +326,11 @@ def capture_cmd(
     if not pkg.available():
         raise click.ClickException(pkg.skip_reason())
 
-    endpoint = None
-    if no_exclude_agent:
-        for cfg in configs:
-            if is_loopback_interface(cfg.interface):
-                logger.warning(AMPLIFICATION_WARNING, cfg.interface, cfg.snaplen)
-    else:
-        try:
-            endpoint = _resolve_agent_endpoint()
-        except ConfigError as exc:
-            raise click.ClickException(str(exc)) from exc
-        logger.info("Excluding agent traffic: %s", endpoint.describe())
+    try:
+        endpoint = _resolve_agent_endpoint()
+    except ConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
+    logger.info("Excluding agent traffic: %s", endpoint.describe())
 
     sessions = [CaptureSession(cfg, endpoint=endpoint, log_frames=not no_frames) for cfg in configs]
     for session in sessions:

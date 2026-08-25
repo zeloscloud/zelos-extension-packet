@@ -34,21 +34,17 @@ def load(tmp_path: Path, raw: dict) -> dict:
 class TestSchemaDefaults:
     def test_empty_config_gets_every_top_level_default(self, tmp_path: Path):
         config = load(tmp_path, {})
-        assert config["exclude_agent_traffic"] is True
         assert config["log_frames"] is True
         assert config["log_level"] == "INFO"
         assert config["interfaces"] == []
 
-    def test_exclude_agent_traffic_defaults_true(self, tmp_path: Path):
-        # The single most consequential default: without it, publishing a
-        # captured packet is itself captured and the loop amplifies.
-        assert (
-            load(tmp_path, {"interfaces": [{"interface": "en0"}]})["exclude_agent_traffic"] is True
-        )
-
-    def test_exclude_agent_traffic_can_be_turned_off(self, tmp_path: Path):
-        config = load(tmp_path, {"exclude_agent_traffic": False})
-        assert config["exclude_agent_traffic"] is False
+    def test_exclude_agent_traffic_is_not_configurable(self, tmp_path: Path):
+        # Disabling exclusion on an interface carrying the agent's stream
+        # diverges rather than settling, so the schema does not offer the knob
+        # and (additionalProperties: false) refuses it outright.
+        with pytest.raises(Exception) as excinfo:
+            load(tmp_path, {"exclude_agent_traffic": False})
+        assert "exclude_agent_traffic" in str(excinfo.value)
 
     def test_interface_item_defaults(self, tmp_path: Path):
         config = load(tmp_path, {"interfaces": [{"interface": "eth0"}]})
@@ -63,7 +59,7 @@ class TestSchemaDefaults:
     def test_shipped_config_json_validates(self, tmp_path: Path):
         shipped = json.loads((REPO_ROOT / "config.json").read_text())
         config = load(tmp_path, shipped)
-        assert config["exclude_agent_traffic"] is True
+        assert config["log_frames"] is True
 
     def test_snaplen_below_minimum_is_rejected(self, tmp_path: Path):
         with pytest.raises(Exception) as excinfo:

@@ -56,13 +56,6 @@
       },
       "default": []
     },
-    "exclude_agent_traffic": {
-      "type": "boolean",
-      "title": "Exclude Agent Traffic",
-      "description": "Drop packets to and from the Zelos agent's own address and port. Leave this on. The extension publishes every captured packet to the agent over the network, so capturing that traffic feeds the extension its own output: a captured packet emits a row, the row is sent to the agent, and that send is itself captured. At large snapshot lengths a row is larger than the packet that produced it, so the loop amplifies instead of settling - it is divergent, not merely noisy. Turn it off only when capturing an interface that carries no agent traffic.",
-      "default": true,
-      "ui:widget": "toggle"
-    },
     "replay_pcap": {
       "type": "string",
       "title": "Replay PCAP File",
