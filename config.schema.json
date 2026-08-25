@@ -23,7 +23,7 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Names this capture in the catalog: paths read packet.<name>/packets.<field> and packet.<name>/stats.<field>. Defaults to the interface name, which is usually what you want. Dots, colons, '@' and '/' are replaced with '_' because they are catalog path separators, so a VLAN device eth0.100 becomes eth0_100. Every capture shares the one 'packet' source, so each name must be unique.",
+            "description": "Names this capture's branch in the signal tree. Defaults to the interface name, which is usually what you want. Dots, colons, '@' and '/' are replaced with '_' because they are catalog path separators, so a VLAN device eth0.100 becomes eth0_100. Every capture shares the one 'packet' source, so each name must be unique.",
             "ui:placeholder": "defaults to the interface name"
           },
           "snaplen": {

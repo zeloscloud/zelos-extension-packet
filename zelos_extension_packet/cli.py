@@ -362,7 +362,7 @@ def capture_cmd(
 @click.option(
     "--name",
     default="",
-    help="Names the capture branch: packet.<name>/packets (default: the file stem).",
+    help="Names this capture's branch in the signal tree (default: the file stem).",
 )
 @click.option("--no-frames", is_flag=True, help="Do not populate the `frame` Binary column.")
 @click.option(

@@ -5,9 +5,8 @@ One :class:`CaptureSession` per configured interface, each backed by a
 is the Start/Stop granularity the supervisor drives.
 
 Every session writes into ONE trace source, ``packet``, and is told apart by
-its name, which becomes the prefix of its two events - so the catalog reads
-``packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields, and a field is
-addressed ``packet.eth0/packets.src_ip``.
+its name, which becomes the prefix of its two events - so the tree reads
+``packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields.
 """
 
 from __future__ import annotations

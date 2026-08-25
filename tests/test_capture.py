@@ -84,7 +84,7 @@ class TestExclusionParameters:
         assert capped.kwargs["frame_snaplen"] == 128
 
     def test_the_shared_source_and_a_per_capture_name_reach_the_core(self, fake_packet):
-        # Together these make the catalog read `packet.eth0/packets.src_ip`.
+        # Together these make the tree read `packet` -> `eth0` -> `packets`.
         # The source has to be OUR shared one — letting the package default
         # would build a second source also named `packet`, which nothing
         # rejects and which hides one of the two from path resolution.

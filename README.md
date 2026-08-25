@@ -9,34 +9,40 @@ Live network capture and pcap decode, in your Zelos workspace.
 - 📁 **Open a pcap** — decode `.pcap`/`.pcapng` with no privileges and no NIC
 - ⏱️ **One timeline** — packets line up with your CAN and sensor data
 
+## Granting capture rights
+
+Capturing reads raw frames, which needs elevated privileges. Decoding a file does not.
+
+| OS | Command |
+| --- | --- |
+| macOS | `sudo dseditgroup -o edit -a "$(whoami)" -t user access_bpf && sudo chgrp access_bpf /dev/bpf* && sudo chmod g+rw /dev/bpf*` — Wireshark's ChmodBPF makes it persistent |
+| Linux | `sudo setcap cap_net_raw,cap_net_admin+eip $(which python3.11)` |
+| Windows | Not supported this release — use `replay_pcap` |
+
 ## Quick start
 
 ```bash
 zelos extensions install packet-capture
-zelos extensions start packet-capture --config '{"interfaces": [{"interface": "lo0"}]}'
+zelos extensions start packet-capture --config '{"interfaces": [{"interface": "en0"}]}'
 ```
 
-Capturing needs elevated privileges. Check first — it prints the exact command for your OS:
+If the rights above are missing, the extension stops on start and logs the exact command to fix it.
 
-```bash
-zelos actions execute packet/check_permissions
-```
-
-No capture rights? Decode a file instead, which needs none:
+Decoding a file needs no privileges and no NIC:
 
 ```bash
 zelos extensions start packet-capture --config '{"replay_pcap": "capture.pcapng"}'
 ```
 
-Rows land under `packet` → `<interface>` → `packets`. Drag that node into the workspace for a
-packet panel; drag `stats` for a plot.
+Captures appear in the tree under **packet → your interface → packets**. Drag that node into
+the workspace for a packet panel; drag **stats** for a plot.
 
 ## Settings
 
 | Setting | Default | |
 | --- | --- | --- |
-| `interfaces[].interface` | – | NIC to capture. `packet/list_interfaces` shows what is available |
-| `interfaces[].name` | interface name | Names the branch: `packet.<name>/packets` |
+| `interfaces[].interface` | – | NIC to capture |
+| `interfaces[].name` | interface name | Names this capture's branch in the tree |
 | `interfaces[].snaplen` | `512` | Bytes captured per packet; raise for full payloads |
 | `interfaces[].promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
 | `interfaces[].buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
@@ -58,11 +64,11 @@ packet panel; drag `stats` for a plot.
 ## CLI
 
 ```bash
-zelos-extension-packet interfaces            # list NICs
-zelos-extension-packet check                 # probe permissions
-zelos-extension-packet capture eth0 eth1     # capture, no app config
-zelos-extension-packet replay capture.pcap   # stream a file to the agent
-zelos-extension-packet convert capture.pcap  # write capture.trz, no agent needed
+uv run zelos-extension-packet interfaces            # list NICs
+uv run zelos-extension-packet check                 # probe permissions
+uv run zelos-extension-packet capture en0 en1       # capture, no app config
+uv run zelos-extension-packet replay capture.pcap   # stream a file to the agent
+uv run zelos-extension-packet convert capture.pcap  # write capture.trz, no agent needed
 ```
 
 ## Links
