@@ -22,8 +22,9 @@ build/
 dist/
 *.egg-info/
 pip-wheel-metadata/
-zelos-extension-packet-v*.tar.gz
-scripts/__pycache__/
+*.tar.gz
+# Standalone action inventory: regenerated from the code on every package run.
+actions.json
 
 # Captures and traces (never commit binary fixtures - tests generate them)
 *.pcap
@@ -36,10 +37,9 @@ scripts/__pycache__/
 *.swp
 *.swo
 
-# OS / editor junk
+# OS / editor junk (.vscode/ is committed - shared ruff/pytest settings)
 .DS_Store
 .idea/
-.vscode/
 
 # Zelos
 .last_config

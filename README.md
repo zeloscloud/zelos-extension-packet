@@ -2,6 +2,22 @@
 
 Live capture (Linux `AF_PACKET`, macOS `/dev/bpf`) and pcap decode, powered by the Rust-cored [`zelos-packet`](https://github.com/zeloscloud/zelos) package.
 
+## Features
+
+- 📡 **Live capture** - Multiple interfaces at once, each on its own branch of one trace source
+- 📁 **pcap decode** - Replay a `.pcap`/`.pcapng` into the agent, or convert it straight to `.trz`
+- 🔍 **Dissected columns** - `src_ip`, `dst_port`, `proto`, and the raw `frame` bytes, per packet
+- 📊 **Per-second stats** - `kernel_drops`, pps, bps, so overload is visible rather than inferred
+- 🔁 **Self-traffic exclusion** - The agent's own endpoint is filtered out by default, so publishing a captured packet does not feed the capture
+- 🔐 **Permission remediation** - A failed capture prints the exact command for your OS instead of a traceback
+
+## Quick Start
+
+1. **Install** the extension from the Zelos App
+2. **Run the `Check permissions` action** - live capture needs elevated privileges, and this prints the exact fix for your OS. Decoding a pcap needs none.
+3. **Run the `List interfaces` action** and paste a NIC name into the configuration
+4. **Start** the extension to begin streaming
+
 Every capture writes into one trace source, `packet`, and appears under it as its own branch:
 
 ```
@@ -16,9 +32,9 @@ packet
 
 So a field is addressed `packet.eth0/packets.src_ip`.
 
-Live capture needs elevated privileges. **Run the `Check permissions` action first** - it prints the exact command for your OS. Decoding a pcap needs none.
-
 ## Configuration
+
+All configuration is managed through the Zelos App settings interface.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
@@ -33,15 +49,6 @@ Live capture needs elevated privileges. **Run the `Check permissions` action fir
 | `frame_snaplen` | `null` | Bytes of each packet **stored** in `frame`; `null` stores every captured byte, so `snaplen` (512) is the single byte budget and the control plane stays byte-complete. Storage only - dissection always reads the full captured bytes, so decoded columns and `orig_len`/`cap_len`/`truncated` are unaffected. |
 | `log_level` | `INFO` | |
 
-## Actions
-
-| Action | Purpose |
-| --- | --- |
-| `packet/list_interfaces` | NICs on the machine running the agent. |
-| `packet/capture_stats` | Per-interface counters: `packets_read`, `bytes_read`, `packets_truncated`, `kernel_drops`, `decode_stall_ms`, plus `metrics.packets_filtered` (agent traffic excluded) and `metrics.emit_stall_ms`. `kernel_drops` climbing with `metrics.emit_stall_ms` near zero means line-rate overload (raise `buffer_size`); a high `metrics.emit_stall_ms` with no drops means the trace store is backpressuring. |
-| `packet/check_permissions` | Can we capture? If not, the exact fix. |
-| `packet/convert_pcap` | Convert a `.pcap`/`.pcapng` to a `.trz`. Standalone: runs with the extension stopped, no agent, no privileges. Output defaults to the input with a `.trz` suffix. |
-
 ## Granting capture rights
 
 | OS | Command |
@@ -50,7 +57,16 @@ Live capture needs elevated privileges. **Run the `Check permissions` action fir
 | macOS | `sudo dseditgroup -o edit -a "$(whoami)" -t user access_bpf && sudo chgrp access_bpf /dev/bpf* && sudo chmod g+rw /dev/bpf*` (Wireshark's ChmodBPF makes it persistent) |
 | Windows | Not supported this release - use `replay_pcap`. |
 
-## CLI
+## Actions
+
+| Action | Purpose |
+| --- | --- |
+| `packet/list_interfaces` | NICs on the machine running the agent. Standalone: runs with the extension stopped. |
+| `packet/capture_stats` | Per-interface counters: `packets_read`, `bytes_read`, `packets_truncated`, `kernel_drops`, `decode_stall_ms`, plus `metrics.packets_filtered` (agent traffic excluded) and `metrics.emit_stall_ms`. `kernel_drops` climbing with `metrics.emit_stall_ms` near zero means line-rate overload (raise `buffer_size`); a high `metrics.emit_stall_ms` with no drops means the trace store is backpressuring. |
+| `packet/check_permissions` | Can we capture? If not, the exact fix. |
+| `packet/convert_pcap` | Convert a `.pcap`/`.pcapng` to a `.trz`. Standalone: runs with the extension stopped, no agent, no privileges. Output defaults to the input with a `.trz` suffix. |
+
+## CLI Usage
 
 ```bash
 zelos-extension-packet interfaces          # list NICs
@@ -76,4 +92,26 @@ Progress bars need `tqdm` (`pip install zelos-extension-packet[cli]`); without i
 
 ## Development
 
-`just install` (or `just install-nolive` while `zelos-packet` is still being built), then `just test`, `just check`, `just package`.
+Want to contribute or modify this extension? See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete developer guide.
+
+`zelos-packet` is not published yet, so `just install` and `just test` must run inside the monorepo dev shell; `just install-nolive` is the escape hatch.
+
+## Links
+
+- **Repository**: [github.com/zeloscloud/zelos-extension-packet](https://github.com/zeloscloud/zelos-extension-packet)
+- **Issues**: [Report bugs or request features](https://github.com/zeloscloud/zelos-extension-packet/issues)
+
+## Support
+
+For help and support:
+- 📖 [Zelos Documentation](https://docs.zeloscloud.io)
+- 🐛 [GitHub Issues](https://github.com/zeloscloud/zelos-extension-packet/issues)
+- 📧 help@zeloscloud.io
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+**Built with [Zelos](https://zeloscloud.io)**

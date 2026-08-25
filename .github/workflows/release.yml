@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - uses: extractions/setup-just@v3
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      # Plain `python`, not `uv run python`: reading two TOML files must not
+      # drag in a project sync before the release gate below has had its say.
+      - name: Verify version matches manifest files
+        run: |
+          TAG_VERSION="${{ steps.version.outputs.VERSION }}"
+
+          EXTENSION_VERSION=$(python -c "import tomllib,pathlib; print(tomllib.loads(pathlib.Path('extension.toml').read_text())['version'])")
+          if [ "$EXTENSION_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: extension.toml version ($EXTENSION_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "✓ extension.toml version matches: $EXTENSION_VERSION"
+
+          PYPROJECT_VERSION=$(python -c "import tomllib,pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$PYPROJECT_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: pyproject.toml version ($PYPROJECT_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "✓ pyproject.toml version matches: $PYPROJECT_VERSION"
+
+      # `just package` refuses while `[tool.uv.sources]` is present, so this job
+      # fails here rather than publishing an archive that installs nowhere.
+      # Everything below needs the real zelos-packet from the index.
+      - name: Install Zelos CLI
+        run: |
+          curl -fsSL https://release.zeloscloud.io/cli/install.sh | bash
+          echo "$HOME/.zelos/bin" >> $GITHUB_PATH
+        env:
+          INSTALLER_NO_MODIFY_PATH: 1
+
+      - name: Install dependencies
+        run: just ci-install
+
+      - name: Run linting
+        run: just check
+
+      - name: Run tests
+        run: just test
+
+      - name: Package extension
+        run: just package
+
+      # `zelos extensions package` names the archive after the manifest name
+      # slug, so this is `packet-capture-<version>.tar.gz`.
+      - name: Verify package was created
+        run: |
+          PACKAGE_FILE="*-${{ steps.version.outputs.VERSION }}.tar.gz"
+          if ! ls $PACKAGE_FILE 1> /dev/null 2>&1; then
+            echo "Error: Package file not found: $PACKAGE_FILE"
+            exit 1
+          fi
+          echo "✓ Package created: $(ls $PACKAGE_FILE)"
+
+      # actions.json is what makes the standalone actions (`convert_pcap`,
+      # `list_interfaces`) discoverable while the extension is stopped. Without
+      # it they ship dark, and nothing else in the pipeline would notice.
+      - name: Verify standalone action inventory shipped
+        run: |
+          ARCHIVE=$(ls *-${{ steps.version.outputs.VERSION }}.tar.gz)
+          if ! tar -tzf "$ARCHIVE" | grep -qx "actions.json"; then
+            echo "Error: actions.json missing from $ARCHIVE - standalone actions would ship dark"
+            exit 1
+          fi
+          echo "✓ actions.json present in $ARCHIVE"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2.4.1
+        with:
+          files: "*-${{ steps.version.outputs.VERSION }}.tar.gz"
+          generate_release_notes: true
+          fail_on_unmatched_files: true

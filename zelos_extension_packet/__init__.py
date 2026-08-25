@@ -15,7 +15,18 @@ from .capture import (
     replay_pcap,
 )
 
+#: The namespace actions are addressed under. One definition for both the live
+#: registration (`zelos_sdk.init(name=ACTION_PREFIX, actions=True)`) and the
+#: at-rest inventory the packaging step dumps from `main.py`, which re-exports
+#: it. Nothing binds the two, so a mismatch silently produces two unrelated
+#: action trees - `packet/convert_pcap` live and `main/convert_pcap` at rest.
+#:
+#: Also the trace source every capture writes into, so the address a user reads
+#: in the app is the one they type.
+ACTION_PREFIX = "packet"
+
 __all__ = [
+    "ACTION_PREFIX",
     "AgentEndpoint",
     "CaptureDeniedError",
     "CaptureSession",

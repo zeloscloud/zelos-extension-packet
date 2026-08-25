@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - uses: extractions/setup-just@v3
+
+      # The `*-nolive` recipes, not `ci-install` / `check` / `test`: `zelos-packet`
+      # still resolves through `[tool.uv.sources]` to a monorepo checkout that
+      # exists on one machine and links libpcap, so a full `uv sync` cannot run
+      # here. Everything else installs, and the few tests that need the real
+      # package skip with a reason. Same goes for `uv lock --locked`, which CAN's
+      # CI runs and this one cannot until the source override is gone.
+      #
+      # Flip all three to the plain recipes once zelos-packet publishes.
+      - name: Install dependencies
+        run: just install-nolive
+
+      - name: Run linting
+        run: just check-nolive
+
+      - name: Run tests
+        run: just test-nolive

@@ -38,9 +38,18 @@ format:
     uv run ruff format .
     uv run ruff check --fix .
 
+# Check formatting (no changes)
+format-check:
+    uv run ruff format --check .
+    uv run ruff check .
+
 # Run checks
 check:
     uv run ruff check .
+
+# Run checks against the install-nolive environment
+check-nolive:
+    .venv/bin/python -m ruff check .
 
 # Run tests
 test:
@@ -62,11 +71,48 @@ interfaces:
 check-permissions:
     uv run python main.py check
 
-# Package extension
-package:
-    uv run python scripts/package_extension.py
+# Package for the Zelos marketplace (also generates actions.json)
+package: clean
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if grep -q '^\[tool\.uv\.sources\]' pyproject.toml; then
+        echo "error: pyproject.toml still resolves zelos-packet through [tool.uv.sources]." >&2
+        echo "       uv honors that table in the extension host too, and both it and uv.lock" >&2
+        echo "       ship in the archive, so the package would install nowhere. Drop the table" >&2
+        echo "       and re-run 'uv lock' once zelos-packet publishes." >&2
+        echo "       For a local, install-nowhere dry run: just package-dev" >&2
+        exit 1
+    fi
+    # The packager only skips dotted paths and node_modules, so a stray
+    # __pycache__ would ship. `clean` clears what is there; this keeps the
+    # action dump (a `uv run` in this directory) from writing more.
+    PYTHONDONTWRITEBYTECODE=1 zelos extensions package .
+
+# Dry-run package while the zelos-packet override stands (installs nowhere)
+package-dev: clean
+    # `--output` only means "directory" if the directory already exists.
+    mkdir -p dist
+    PYTHONDONTWRITEBYTECODE=1 zelos extensions package . --output dist
+
+# Release: bump version, format, check, test, commit, tag
+release VERSION:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    git diff-index --quiet HEAD || (echo "Uncommitted changes! Commit or stash first." && exit 1)
+    zelos extensions bump "{{VERSION}}"
+    just format
+    uv lock
+    just check
+    just test
+    git add -A
+    git commit -m "Release v{{VERSION}}"
+    git tag -a "v{{VERSION}}" -m "Release v{{VERSION}}"
+    echo ""
+    echo "✓ Release v{{VERSION}} ready!"
+    echo ""
+    echo "Push with: git push --follow-tags"
 
 # Clean build artifacts
 clean:
-    rm -rf dist build .pytest_cache .ruff_cache *.tar.gz .artifacts
+    rm -rf dist build .pytest_cache .ruff_cache *.tar.gz .artifacts actions.json
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

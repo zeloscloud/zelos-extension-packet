@@ -1,54 +1,52 @@
-"""The published archive must not carry the local-dev `[tool.uv.sources]` table.
+"""`zelos extensions package` reads extension.toml and refuses on a dangling path.
 
-uv honours `[tool.uv.sources]` whenever uv is the resolver - which includes the
-extension host - so shipping the developer's monorepo path would make every
-install fail on a directory that exists on exactly one machine.
+Every miss below would surface for the first time at tag time, in the release
+workflow, with the tag already pushed. Catching it in CI is the whole point.
 """
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 import tomllib
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = tomllib.loads((REPO_ROOT / "extension.toml").read_text())
+
+# Added to the archive by the CLI whether or not [package] names them.
+IMPLICIT_KEYS = ["icon", "readme"]
 
 
-def _load_packager():
-    spec = importlib.util.spec_from_file_location(
-        "package_extension", REPO_ROOT / "scripts" / "package_extension.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+@pytest.mark.parametrize("relative", MANIFEST["package"]["paths"])
+def test_package_path_exists(relative: str) -> None:
+    assert (REPO_ROOT / relative).exists(), f"[package] paths names a missing {relative}"
 
 
-class TestStripUvSources:
-    def test_real_pyproject_loses_uv_sources_and_keeps_everything_else(self):
-        packager = _load_packager()
-        original = (REPO_ROOT / "pyproject.toml").read_text()
-        assert "[tool.uv.sources]" in original, "expected a local-dev source entry"
+@pytest.mark.parametrize("key", IMPLICIT_KEYS)
+def test_referenced_file_exists(key: str) -> None:
+    assert (REPO_ROOT / MANIFEST[key]).is_file(), f"manifest {key} points at a missing file"
 
-        stripped = packager.strip_uv_sources(original)
-        parsed = tomllib.loads(stripped)
 
-        assert "sources" not in parsed.get("tool", {}).get("uv", {})
-        assert "api/py/zelos-packet" not in stripped  # the local checkout path
-        assert parsed["project"]["name"] == "zelos-extension-packet"
-        assert parsed["build-system"]["build-backend"] == "hatchling.build"
-        # The dependency itself must survive - only the local override goes.
-        assert any(dep.startswith("zelos-packet") for dep in parsed["project"]["dependencies"])
+def test_config_schema_exists() -> None:
+    assert (REPO_ROOT / MANIFEST["config"]["schema"]).is_file()
 
-    def test_pyproject_without_the_table_is_unchanged(self):
-        packager = _load_packager()
-        text = '[project]\nname = "x"\n\n[build-system]\nrequires = ["hatchling"]\n'
-        assert packager.strip_uv_sources(text) == text
 
-    def test_comments_inside_the_table_are_removed_too(self):
-        packager = _load_packager()
-        text = "[tool.uv.sources]\n# local only\nfoo = { path = '../foo' }\n\n[build-system]\n"
-        stripped = packager.strip_uv_sources(text)
-        assert "local only" not in stripped
-        assert stripped.strip() == "[build-system]"
+def test_entry_point_is_packaged() -> None:
+    """The runtime entry has to be in [package] paths - nothing adds it implicitly."""
+    assert MANIFEST["runtime"]["entry"] in MANIFEST["package"]["paths"]
+
+
+def test_entry_module_re_exports_the_action_prefix() -> None:
+    """At-rest and live actions must land in one namespace.
+
+    The inventory dump reads `ACTION_PREFIX` off the entry module and otherwise
+    falls back to its name, so a missing re-export ships `main/convert_pcap`
+    while the running extension serves `packet/convert_pcap` - two unrelated
+    trees, no error anywhere.
+    """
+    import main
+    from zelos_extension_packet import ACTION_PREFIX
+    from zelos_extension_packet.cli import SOURCE_PREFIX
+
+    assert main.ACTION_PREFIX == ACTION_PREFIX == SOURCE_PREFIX

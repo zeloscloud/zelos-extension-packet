@@ -11,6 +11,7 @@ keywords = ["packet", "pcap", "network", "ethernet", "tcpdump", "sniffer"]
 categories = ["Networking", "Industrial", "IoT"]
 
 # File references (relative paths in archive)
+icon = "assets/icon.svg"
 readme = "README.md"
 changelog = "CHANGELOG.md"
 
@@ -34,3 +35,11 @@ python_version = "3.11"
 # the supervisor escalates to SIGKILL.
 [stop]
 grace_seconds = 15
+
+# Package boundary for `zelos extensions package`. extension.toml, README.md,
+# config.schema.json, assets/icon.svg, pyproject.toml, uv.lock and the generated
+# actions.json are added automatically; everything else has to be named here.
+# `config.json` ships so a fresh install has sane defaults before the app writes
+# its own.
+[package]
+paths = ["main.py", "zelos_extension_packet", "config.json", "CHANGELOG.md"]

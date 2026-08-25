@@ -14,8 +14,8 @@ import rich_click as click
 import zelos_sdk
 from zelos_sdk.extensions import load_config
 
+from . import ACTION_PREFIX, pkg
 from . import actions as packet_actions
-from . import pkg
 from .agent_filter import AMPLIFICATION_WARNING, AgentEndpoint, is_loopback_interface
 from .agent_filter import resolve_agent_endpoint as _resolve_agent_endpoint
 from .capture import (
@@ -35,7 +35,8 @@ from .converter import convert_paths
 
 logger = logging.getLogger(__name__)
 
-SOURCE_PREFIX = "packet"
+#: Defined once in the package root - the at-rest action inventory reads it too.
+SOURCE_PREFIX = ACTION_PREFIX
 
 
 def _apply_log_level(config: dict) -> None:
