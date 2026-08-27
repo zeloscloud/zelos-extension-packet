@@ -37,7 +37,7 @@
           "promiscuous": {
             "type": "boolean",
             "title": "Promiscuous Mode",
-            "description": "Capture every frame on the segment, not just frames addressed to this host. Off by default: on a switched network it mostly adds noise, it can require extra privileges, and some drivers and VM NICs lose throughput sharply in promiscuous mode. Turn it on when capturing from a mirror/SPAN port or a tap.",
+            "description": "Capture every frame on the segment, not just frames addressed to this host. Off by default: on a switched network it mostly adds noise, and some drivers and VM NICs lose throughput sharply in promiscuous mode. Turn it on when capturing from a mirror/SPAN port or a tap.",
             "default": false,
             "ui:widget": "toggle"
           },

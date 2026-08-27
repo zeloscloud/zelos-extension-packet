@@ -207,47 +207,51 @@ def builtin_grant_instructions(
     Pure: no package, no syscalls, so it is testable at the helper seam and is
     available even when `zelos-packet` cannot be imported - which is exactly
     when a user still needs to be told what capture costs here.
+
+    Names `executable` outright rather than an abstract "your python": the
+    grant runs `zelos_packet`, so it must be the interpreter this extension
+    runs under, and a user copy-pasting `python3` under sudo gets the system
+    one, which cannot import the package.
     """
     system = system or platform.system()
     executable = executable or sys.executable or "python3"
 
     if system == "Linux":
         body = f"""
-Live capture needs CAP_NET_RAW (and CAP_NET_ADMIN for promiscuous mode). Grant
-them to the interpreter that runs this extension - one time, no reboot:
+Live capture needs CAP_NET_RAW. Grant it once, per machine:
 
-    sudo setcap cap_net_raw,cap_net_admin+eip {executable}
+    sudo {executable} -m zelos_packet install-helper
 
-Verify with:
+That installs a small privileged helper (cap_net_raw only) and adds you to the
+zelos-packet group. Members of that group can also SEND arbitrary frames on
+this machine, not only capture them.
 
-    getcap {executable}
+Then log out and back in, and restart the agent: a session's groups are fixed
+at login. Check the grant with:
 
-If that path is a symlink (uv-managed venvs usually are), capabilities must go
-on the real file: `setcap ... "$(readlink -f {executable})"`.
-
-Then restart the extension.
+    {executable} -m zelos_packet status
 """
     elif system == "Darwin":
-        # Deliberately the same two options, in the same order, as
-        # zelos-packet's own `permission_remediation()` (rs/capture/error.rs).
-        # These used to disagree: this fallback told the user to create an
-        # access_bpf group, which needs a logout before the membership takes
-        # effect, so following it looked like it had failed. `admin` is a
-        # group a macOS admin user is already in, so it works immediately.
-        body = """
-Live capture reads /dev/bpf*, which is root-only by default on macOS. Pick one:
+        # Same command, same order, as zelos-packet's own
+        # `permission_remediation()` (rs/capture/error.rs) - one grant flow,
+        # not two. The access_bpf group is back, deliberately: it is what
+        # Wireshark's ChmodBPF uses, so the two products' boot daemons agree
+        # on the group instead of last-writer-wins. Its logout requirement is
+        # no longer a trap because the text now states it.
+        body = f"""
+Live capture reads /dev/bpf*, which is root-only by default on macOS. Grant
+access once, per machine:
 
-  1. Grant your user access (works immediately, resets on reboot):
+    sudo {executable} -m zelos_packet install-helper
 
-         sudo chgrp admin /dev/bpf*
-         sudo chmod g+rw /dev/bpf*
+That installs a boot-time daemon (Wireshark's ChmodBPF shape) putting
+/dev/bpf* in the access_bpf group, and adds you to it. Members of that group
+can also SEND arbitrary frames on this machine, not only capture them.
 
-  2. Persist it across reboots with Wireshark's ChmodBPF daemon:
+Then log out and back in, and restart the agent: a session's groups are fixed
+at login. Check the grant with:
 
-         sudo /Library/Application\\ Support/Wireshark/ChmodBPF/ChmodBPF
-
-Then restart the extension. Verify with `ls -l /dev/bpf0` — you want
-`crw-rw---- root admin`.
+    {executable} -m zelos_packet status
 """
     else:
         body = f"""
@@ -275,11 +279,34 @@ def capture_grant_instructions(
     Carries no "permission denied" claim, so it can also be handed to a user
     whose Start failed for some other reason (missing package, no NICs).
     """
-    if (system or platform.system()) == platform.system():
+    resolved = system or platform.system()
+    if resolved == platform.system():
         native = pkg.permission_remediation().strip()
         if native:
-            return f"{native}\n\n{_REPLAY_HINT}"
+            # No bootstrap to name on a platform with no capture path - there
+            # the native text says "unsupported", and a sudo command under it
+            # would contradict it.
+            parts = [native]
+            if resolved in ("Linux", "Darwin"):
+                parts.append(_this_interpreter_hint(executable))
+            parts.append(_REPLAY_HINT)
+            return "\n\n".join(parts)
     return builtin_grant_instructions(system=system, executable=executable)
+
+
+def _this_interpreter_hint(executable: str | None = None) -> str:
+    """Pin the native text's bootstrap command to the interpreter that failed.
+
+    The package writes the command as `sudo "$(command -v python3)" ...`, which
+    is right for someone who hit the error in their own venv and wrong here:
+    the agent's extension environment is not on the user's PATH, so pasting it
+    into a terminal grants the *system* python, which cannot import
+    `zelos_packet`. Naming the absolute path is the whole fix.
+    """
+    return (
+        "The extension runs under this interpreter, so run exactly:\n\n"
+        f"    sudo {executable or sys.executable or 'python3'} -m zelos_packet install-helper"
+    )
 
 
 def remediation_text(

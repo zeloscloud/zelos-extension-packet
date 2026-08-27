@@ -11,13 +11,18 @@ Live network capture and pcap decode, in your Zelos workspace.
 
 ## Granting capture rights
 
-Capturing reads raw frames, which needs elevated privileges. Decoding a file does not.
+Capturing reads raw frames, which needs one grant per machine. Decoding a file does not.
 
-| OS | Command |
-| --- | --- |
-| macOS | `sudo dseditgroup -o edit -a "$(whoami)" -t user access_bpf && sudo chgrp access_bpf /dev/bpf* && sudo chmod g+rw /dev/bpf*` — Wireshark's ChmodBPF makes it persistent |
-| Linux | `sudo setcap cap_net_raw,cap_net_admin+eip $(which python3.11)` |
-| Windows | Not supported this release — use `replay_pcap` |
+```bash
+uv run zelos-extension-packet check     # when denied, prints the exact command for this machine
+sudo /path/to/python -m zelos_packet install-helper
+```
+
+- 🔐 **Linux** installs a small privileged helper (`cap_net_raw` only) and a `zelos-packet` group; **macOS** installs a boot-time daemon that puts `/dev/bpf*` in the `access_bpf` group
+- ⚠️ Members of that group can **send** arbitrary frames on the machine, not only capture them
+- 🔁 Log out and back in, then restart the agent — a session's groups are fixed at login
+- ✅ `python -m zelos_packet status` says whether capture would work right now
+- 🪟 Windows has no live capture this release — use `replay_pcap`
 
 ## Quick start
 

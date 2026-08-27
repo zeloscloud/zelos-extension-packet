@@ -3,6 +3,8 @@ capture handle tells the user."""
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from zelos_extension_packet.agent_filter import AgentEndpoint
@@ -202,26 +204,35 @@ class TestRemediationText:
         text = capture_grant_instructions()
         assert FAKE_REMEDIATION in text
         assert "Replay PCAP File" in text
+        # ...pinned to this interpreter: the package writes the command with
+        # `$(command -v python3)`, which is not the agent's extension env.
+        assert f"sudo {sys.executable} -m zelos_packet install-helper" in text
 
-    def test_linux_names_setcap_with_the_running_interpreter(self):
+    def test_linux_names_the_bootstrap_with_the_running_interpreter(self):
+        """`sudo python3` is the system python, which cannot import the
+        package, so the absolute path is the whole point of the command."""
         text = builtin_grant_instructions(system="Linux", executable="/usr/bin/python3.11")
-        assert "sudo setcap cap_net_raw,cap_net_admin+eip /usr/bin/python3.11" in text
-        assert "getcap /usr/bin/python3.11" in text
+        assert "sudo /usr/bin/python3.11 -m zelos_packet install-helper" in text
+        assert "/usr/bin/python3.11 -m zelos_packet status" in text
+        assert "setcap" not in text, "the interpreter grant is gone"
+        assert "CAP_NET_ADMIN" not in text, "unnecessary for wired capture"
 
-    def test_macos_names_the_bpf_group_grant(self):
-        """The grant must match zelos-packet's own remediation text.
-
-        These two used to disagree — this fallback named an access_bpf group,
-        which needs a logout before the membership applies, so a user who
-        followed it saw it apparently fail. Pinned on `admin` because a macOS
-        admin user is already a member and it takes effect immediately.
-        """
-        text = builtin_grant_instructions(system="Darwin")
+    def test_macos_names_the_same_bootstrap(self):
+        """One grant flow, not two: this must not drift back into a
+        hand-rolled chgrp/chmod recipe that zelos-packet no longer performs."""
+        text = builtin_grant_instructions(system="Darwin", executable="/opt/py/bin/python3")
         assert "/dev/bpf*" in text
-        assert "sudo chgrp admin /dev/bpf*" in text
-        assert "sudo chmod g+rw /dev/bpf*" in text
-        assert "access_bpf" not in text, "must not resurrect the logout-required grant"
+        assert "sudo /opt/py/bin/python3 -m zelos_packet install-helper" in text
+        assert "access_bpf" in text
         assert "ChmodBPF" in text
+
+    def test_both_platforms_disclose_the_grant_and_its_relogin(self):
+        """The group confers sending, not just observing, and membership only
+        applies at next login - the single most common support question."""
+        for system in ("Linux", "Darwin"):
+            text = builtin_grant_instructions(system=system)
+            assert "SEND arbitrary frames" in text
+            assert "log out and back in" in text
 
     def test_every_platform_offers_the_zero_privilege_path(self):
         # Including Windows, which has no live capture in this release.

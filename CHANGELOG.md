@@ -22,6 +22,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   GIL-releasing `convert_file` runs. Missing `tqdm` logs an install hint rather
   than failing.
 
+### Changed
+- **Capture rights are granted with `sudo <python> -m zelos_packet install-helper`**,
+  not by `setcap`-ing the interpreter. Linux gets a privileged helper binary
+  (`cap_net_raw` only - `CAP_NET_ADMIN` is not needed for wired capture) plus a
+  `zelos-packet` group; macOS gets a ChmodBPF-style boot daemon over
+  `/dev/bpf*`. Group membership applies at next login, which the remediation
+  text now says, and members of either group can send frames as well as
+  capture them.
+
 ### Fixed
 - A failed decode no longer leaves a stub `.trz` behind. The writer creates the
   file before the first packet, so a partial output was indistinguishable from
