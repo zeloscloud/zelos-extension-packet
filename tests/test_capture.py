@@ -49,6 +49,18 @@ class TestExclusionParameters:
         assert capture.kwargs["exclude_agent_addrs"] == ["127.0.0.1", "::1"]
         assert capture.kwargs["exclude_agent_port"] == 2300
 
+    def test_the_agent_url_matches_the_endpoint_that_was_excluded(self, fake_packet):
+        """One resolution, not two. On the helper backend this decides where
+        the rows go, and the exclusion literals came from the same URL - deriving
+        them independently is how a capture excludes one endpoint and publishes
+        to another."""
+        from zelos_extension_packet.agent_filter import agent_url
+
+        s = session(endpoint=ENDPOINT)
+        s.start()
+        [capture] = FakeCapture.instances
+        assert capture.kwargs["agent_url"] == agent_url()
+
     def test_disabled_exclusion_passes_none(self, fake_packet):
         s = session(endpoint=None)
         s.start()
@@ -127,6 +139,45 @@ class TestExclusionParameters:
         s.stop()
 
 
+class TestBackendSelection:
+    """Which process runs the capture decides whether a source is handed over.
+
+    The helper backend produces its rows in another process with its own SDK
+    connection; `PacketCapture` refuses a source there rather than accept one
+    that would never receive a packet, so the session has to ask first.
+    """
+
+    def test_the_in_process_backend_gets_the_shared_source(self, fake_packet):
+        s = session(endpoint=ENDPOINT)
+        s.start()
+        [capture] = FakeCapture.instances
+        assert capture.kwargs["source"] is not None
+
+    def test_the_helper_backend_is_handed_no_source(self, monkeypatch):
+        install_fake(monkeypatch, backend="helper")
+        s = session(endpoint=ENDPOINT)
+        s.start()
+        [capture] = FakeCapture.instances
+        assert capture.kwargs["source"] is None
+        assert capture.started
+
+    def test_the_backend_is_asked_before_anything_is_constructed(self, monkeypatch):
+        """Constructing to find out would default a SECOND source named
+        `packet` on the in-process path, which is the collision
+        `make_trace_source` exists to prevent."""
+        module = install_fake(monkeypatch)
+        asked: list[str] = []
+
+        def record(interface):
+            assert FakeCapture.instances == [], "a capture existed before the backend was known"
+            asked.append(interface)
+            return "in-process"
+
+        module.capture_backend = record
+        session(interface="eth0", name="eth0", endpoint=ENDPOINT).start()
+        assert asked == ["eth0"]
+
+
 class TestPermissionDenied:
     def test_eperm_is_translated_with_remediation(self, monkeypatch):
         class DeniedCapture(FakeCapture):
@@ -172,29 +223,38 @@ class TestPermissionDenied:
         with pytest.raises(OSError, match="device is down"):
             session(endpoint=ENDPOINT).start()
 
-    def test_probe_reports_can_capture_when_the_handle_opens(self, fake_packet):
+    def test_probe_reports_can_capture_and_which_backend(self, fake_packet):
         result = probe_permissions()
         assert result["can_capture"] is True
+        assert result["backend"] == "in-process"
         # First interface that is up and not loopback.
         assert result["interface"] == "en0"
 
-    def test_probe_returns_remediation_instead_of_raising(self, monkeypatch):
-        class DeniedCapture(FakeCapture):
-            def __init__(self, **kwargs):
-                raise PermissionError(1, "Operation not permitted")
+    def test_probe_reports_the_helper_backend_when_that_is_what_would_run(self, monkeypatch):
+        """Which process would open the socket is part of the answer: on the
+        helper backend the verdict here is "a runnable helper is installed",
+        not "the kernel will honor its capability"."""
+        install_fake(monkeypatch, backend="helper")
+        assert probe_permissions("en0")["backend"] == "helper"
 
-        install_fake(monkeypatch, capture_cls=DeniedCapture)
+    def test_probe_returns_remediation_instead_of_raising(self, monkeypatch):
+        module = install_fake(monkeypatch)
+
+        def denied(_interface):
+            raise PermissionError(1, "Operation not permitted")
+
+        module.capture_backend = denied
         result = probe_permissions("en0")
         assert result["can_capture"] is False
         assert FAKE_REMEDIATION in result["remediation"]
         assert "Replay PCAP File" in result["remediation"]
 
-    def test_probe_never_starts_the_capture(self, fake_packet):
-        # start() registers the pkt schemas; a permission probe must not leave a
-        # phantom source in the live catalog.
+    def test_probe_constructs_nothing_at_all(self, fake_packet):
+        """Constructing would default a SECOND source named `packet` alongside
+        the sessions' shared one, and starting would register the pkt schemas -
+        a permission check must leave neither behind."""
         probe_permissions("en0")
-        [capture] = FakeCapture.instances
-        assert capture.started is False
+        assert FakeCapture.instances == []
 
 
 class TestRemediationText:
@@ -226,13 +286,26 @@ class TestRemediationText:
         assert "access_bpf" in text
         assert "ChmodBPF" in text
 
-    def test_both_platforms_disclose_the_grant_and_its_relogin(self):
-        """The group confers sending, not just observing, and membership only
-        applies at next login - the single most common support question."""
+    def test_both_platforms_disclose_the_relogin(self):
+        """Membership only applies at next login - the single most common
+        support question."""
         for system in ("Linux", "Darwin"):
-            text = builtin_grant_instructions(system=system)
-            assert "SEND arbitrary frames" in text
-            assert "log out and back in" in text
+            assert "log out and back in" in builtin_grant_instructions(system=system)
+
+    def test_only_macos_claims_the_group_confers_sending(self):
+        """The two grants are genuinely different and the text must not blur
+        them. macOS opens /dev/bpf read-write in-process, so its group really
+        does confer sending. Linux runs a helper that drops every capability
+        and never hands its socket out, so claiming the same there overstates
+        what enrolling a user costs.
+        """
+        macos = builtin_grant_instructions(system="Darwin")
+        assert "SEND arbitrary frames" in macos
+
+        linux = builtin_grant_instructions(system="Linux")
+        assert "SEND arbitrary frames" not in linux
+        assert "capture traffic on this machine" in linux
+        assert "never hands out the socket" in linux
 
     def test_every_platform_offers_the_zero_privilege_path(self):
         # Including Windows, which has no live capture in this release.

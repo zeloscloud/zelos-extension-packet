@@ -1,12 +1,25 @@
 """Per-interface capture lifecycle, config parsing, and permission remediation.
 
 One :class:`CaptureSession` per configured interface, each backed by a
-``zelos_packet.PacketCapture`` whose Rust core owns the emit path. The session
-is the Start/Stop granularity the supervisor drives.
+``zelos_packet.PacketCapture``. The session is the Start/Stop granularity the
+supervisor drives.
+
+``PacketCapture`` picks one of two backends at construction, and
+``capture.backend`` reports which:
+
+* ``"in-process"`` - macOS, and Linux where the agent process already holds
+  ``CAP_NET_RAW``. Rust owns the emit path in this process and the rows go
+  through the shared ``packet`` source below.
+* ``"helper"`` - Linux without that privilege. ``zelos-packet-helper`` runs the
+  capture in its own process, drops every capability before it reads a byte,
+  and streams decoded rows straight to the agent. Nothing passes through this
+  process, so no source is handed over and the permission verdict arrives at
+  Start rather than at construction.
 
 Every session writes into ONE trace source, ``packet``, and is told apart by
 its name, which becomes the prefix of its two events - so the tree reads
-``packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields.
+``packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields. That holds on both
+backends: the helper is given the same source name and event prefix.
 """
 
 from __future__ import annotations
@@ -23,7 +36,7 @@ from . import pkg
 
 # `ConfigError` is defined in `agent_filter` (which imports nothing from here)
 # and re-exported, so endpoint resolution can raise it without an import cycle.
-from .agent_filter import AgentEndpoint, ConfigError
+from .agent_filter import AgentEndpoint, ConfigError, agent_url
 
 logger = logging.getLogger(__name__)
 
@@ -223,8 +236,10 @@ Live capture needs CAP_NET_RAW. Grant it once, per machine:
     sudo {executable} -m zelos_packet install-helper
 
 That installs a small privileged helper (cap_net_raw only) and adds you to the
-zelos-packet group. Members of that group can also SEND arbitrary frames on
-this machine, not only capture them.
+zelos-packet group. Members of that group can capture traffic on this machine.
+The helper opens the capture socket, drops every capability before it reads a
+byte, and streams decoded packets back - it never hands out the socket, so
+membership does not let anyone send frames.
 
 Then log out and back in, and restart the agent: a session's groups are fixed
 at login. Check the grant with:
@@ -238,6 +253,10 @@ at login. Check the grant with:
         # Wireshark's ChmodBPF uses, so the two products' boot daemons agree
         # on the group instead of last-writer-wins. Its logout requirement is
         # no longer a trap because the text now states it.
+        #
+        # The SEND caveat is genuinely platform-specific and stays only here:
+        # macOS captures in-process through a read-write bpf device, while the
+        # Linux grant runs a helper that never hands its socket out.
         body = f"""
 Live capture reads /dev/bpf*, which is root-only by default on macOS. Grant
 access once, per machine:
@@ -246,7 +265,8 @@ access once, per machine:
 
 That installs a boot-time daemon (Wireshark's ChmodBPF shape) putting
 /dev/bpf* in the access_bpf group, and adds you to it. Members of that group
-can also SEND arbitrary frames on this machine, not only capture them.
+can also SEND arbitrary frames on this machine, not only capture them: a bpf
+device is opened read-write and capture needs the write side.
 
 Then log out and back in, and restart the agent: a session's groups are fixed
 at login. Check the grant with:
@@ -391,6 +411,12 @@ class CaptureSession:
 
         Keyword names are the native ones (``api/py/zelos-packet/rs/lib.rs``);
         the package is pinned `==`, so there is nothing to negotiate.
+
+        ``agent_url`` is passed explicitly even though the package resolves the
+        same default: on the helper backend it decides where the rows go, and
+        the exclusion literals below were resolved from that same URL. Letting
+        the two be derived independently is how a capture ends up excluding one
+        endpoint and publishing to another.
         """
         return {
             "interface": self.config.interface,
@@ -400,24 +426,41 @@ class CaptureSession:
             "snaplen": self.config.snaplen,
             "promiscuous": self.config.promiscuous,
             "buffer_bytes": self.config.buffer_size,
+            "agent_url": agent_url(),
             "exclude_agent_addrs": list(self.endpoint.literals) if self.endpoint else None,
             "exclude_agent_port": self.endpoint.port if self.endpoint else None,
         }
 
     def start(self) -> None:
-        """Open the capture handle and begin emitting.
+        """Construct the capture and begin emitting.
 
-        `zelos_sdk.init()` must already have run: the source is resolved through
-        the SDK's ABI capsule at construction time. The constructor probe-opens
-        the handle, so a privilege failure surfaces here rather than from a
-        background thread.
+        `zelos_sdk.init()` must already have run: on the in-process backend the
+        source is resolved through the SDK's ABI capsule at construction time.
+
+        Construction picks the backend by attempting the in-process open, so a
+        privilege failure surfaces here rather than from a background thread -
+        either at construction (no backend available at all) or from `start()`
+        (the helper ran and the kernel refused it). Both are caught below and
+        both carry the same remediation.
+
+        A source is handed over only on the in-process backend. On the helper
+        backend the rows are produced in another process, and passing one there
+        is a hard error precisely so it cannot look like silent data loss.
         """
         try:
-            self._source = make_trace_source()
-            self._capture = pkg.module().PacketCapture(
-                source=self._source,
+            module = pkg.module()
+            extra: dict[str, Any] = {}
+            # Asked before constructing, not discovered by catching the
+            # refusal: constructing an in-process capture without a source
+            # would auto-create a SECOND one named `packet`, which is exactly
+            # the collision `make_trace_source` exists to prevent.
+            if module.capture_backend(self.config.interface) == "in-process":
+                self._source = make_trace_source()
+                extra["source"] = self._source
+            self._capture = module.PacketCapture(
                 log_frames=self.log_frames,
                 frame_snaplen=self.frame_snaplen,
+                **extra,
                 **self.capture_kwargs(),
             )
             self._capture.start()
@@ -440,10 +483,12 @@ class CaptureSession:
         else:
             frames = f"first {self.frame_snaplen} B"
         logger.info(
-            "Capturing %s into %s.%s/packets (snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
+            "Capturing %s into %s.%s/packets via the %s backend "
+            "(snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
             self.config.interface,
             PACKET_SOURCE_NAME,
             self.config.name,
+            self._capture.backend,
             self.config.snaplen,
             self.config.promiscuous,
             self.config.buffer_size,
@@ -470,10 +515,15 @@ class CaptureSession:
     def stop(self) -> None:
         """Stop capturing.
 
-        ``PacketCapture.stop()`` joins the reader thread and drains the batch in
-        flight, so returning implies every row is through the sink. The router
-        itself is drained (blocking) by the SDK's atexit hook, which is why the
-        CLI returns normally from `main` rather than calling `os._exit`.
+        ``PacketCapture.stop()`` is bounded at ~3s on both backends. In-process
+        it joins the reader thread and drains the batch in flight, so returning
+        implies every row is through the sink; the router itself is drained
+        (blocking) by the SDK's atexit hook, which is why the CLI returns
+        normally from `main` rather than calling `os._exit`. On the helper
+        backend it signals the process, which drains the kernel buffer, emits
+        its final ``pkt_stats`` row and lets its own router hand everything to
+        the agent inside the same bound, and then reaps it - escalating to
+        SIGKILL rather than waiting past the bound.
         """
         if self._capture is None:
             return
@@ -569,6 +619,13 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
 
     Returns a result dict rather than raising, because this is the answer to
     "will Start work?" and callers want the remediation text either way.
+
+    One honest limit, reported in ``backend``. On Linux without CAP_NET_RAW the
+    capture runs in the helper process, and the socket is opened *there* - so
+    what this proves is that a runnable, executable helper is installed, not
+    that the kernel will honor its capability. A stripped xattr or a nosuid
+    mount still fails at Start; ``python -m zelos_packet status`` reports those
+    directly.
     """
     system = platform.system()
     # `capture_supported()` is the package's own compiled-in answer; the
@@ -583,6 +640,7 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
         return {
             "supported": supported,
             "can_capture": False,
+            "backend": "",
             "platform": system,
             "interface": target or "",
             "reason": reason,
@@ -605,20 +663,17 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
             return denied("No network interfaces were reported by zelos-packet")
         target = str(pool[0]["name"])
 
-    # Construct and drop, never start: the constructor probe-opens the handle
-    # (lib.rs `new`), which is the entire question here, while `start()` would
-    # register this interface's two events and leave them in the live catalog
-    # on every permission check.
+    # Ask which backend, never start: `capture_backend` runs the same
+    # attempted open the constructor runs, which is the entire question here,
+    # while `start()` would register this interface's two events and leave them
+    # in the live catalog on every permission check.
     #
-    # The shared source is passed rather than letting the package default one:
-    # defaulting would build a SECOND source named `packet` alongside the one
-    # the sessions use, which nothing rejects and which hides one of the two
-    # from `by_path` resolution. Construction registers no events, so handing
-    # over the real source costs nothing.
+    # It also builds nothing - no capture object, no trace source. Constructing
+    # one without passing a source would default a SECOND source named `packet`
+    # alongside the one the sessions use, which nothing rejects and which hides
+    # one of the two from `by_path` resolution.
     try:
-        pkg.module().PacketCapture(
-            interface=target, snaplen=64, log_frames=False, source=make_trace_source()
-        )
+        backend = pkg.module().capture_backend(target)
     except Exception as exc:
         if pkg.is_permission_error(exc):
             # str(exc) embeds the package's own remediation block; keep only
@@ -634,6 +689,7 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
         return {
             "supported": True,
             "can_capture": True,
+            "backend": backend,
             "platform": system,
             "interface": target,
             "reason": "",

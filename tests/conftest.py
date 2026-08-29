@@ -88,6 +88,10 @@ class FakeCapture:
 
     instances: list[FakeCapture] = []
 
+    #: Which backend the stand-in reports. `install_fake(backend=...)` sets it,
+    #: because the two paths differ in whether a source is handed over.
+    backend = "in-process"
+
     def __init__(
         self,
         interface,
@@ -103,6 +107,7 @@ class FakeCapture:
         exclude_agent_port=None,
         source=None,
         name=None,
+        agent_url=None,
     ):
         self.kwargs = {
             "interface": interface,
@@ -118,6 +123,7 @@ class FakeCapture:
             "exclude_agent_addrs": exclude_agent_addrs,
             "exclude_agent_port": exclude_agent_port,
             "source": source,
+            "agent_url": agent_url,
         }
         self.started = False
         self.stopped = False
@@ -249,7 +255,9 @@ def fake_sanitize_name(raw: str) -> str:
     return cleaned or "capture"
 
 
-def make_fake_module(*, capture_cls=FakeCapture, interfaces=None) -> SimpleNamespace:
+def make_fake_module(
+    *, capture_cls=FakeCapture, interfaces=None, backend="in-process"
+) -> SimpleNamespace:
     ifaces = (
         interfaces
         if interfaces is not None
@@ -281,12 +289,17 @@ def make_fake_module(*, capture_cls=FakeCapture, interfaces=None) -> SimpleNames
         InterfaceNotFoundError=FakeInterfaceNotFoundError,
         list_interfaces=lambda: list(ifaces),
         capture_supported=lambda: True,
+        # Asked before construction so the session knows whether `source=` may
+        # be passed at all; see `CaptureSession.start`.
+        capture_backend=lambda _interface: backend,
         permission_remediation=lambda: FAKE_REMEDIATION,
         sanitize_name=fake_sanitize_name,
     )
 
 
-def install_fake(monkeypatch, *, capture_cls=FakeCapture, interfaces=None) -> SimpleNamespace:
+def install_fake(
+    monkeypatch, *, capture_cls=FakeCapture, interfaces=None, backend="in-process"
+) -> SimpleNamespace:
     """Install a stand-in `zelos_packet` (and trace source) for one test.
 
     `make_trace_source` is stubbed too: constructing a real SDK source would
@@ -296,7 +309,8 @@ def install_fake(monkeypatch, *, capture_cls=FakeCapture, interfaces=None) -> Si
     from zelos_extension_packet import capture as capture_mod
 
     FakeCapture.instances.clear()
-    module = make_fake_module(capture_cls=capture_cls, interfaces=interfaces)
+    capture_cls.backend = backend
+    module = make_fake_module(capture_cls=capture_cls, interfaces=interfaces, backend=backend)
     monkeypatch.setattr(pkg, "module", lambda: module)
     monkeypatch.setattr(pkg, "available", lambda: True)
     monkeypatch.setattr(capture_mod, "make_trace_source", FakeTraceSource)

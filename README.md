@@ -19,7 +19,8 @@ sudo /path/to/python -m zelos_packet install-helper
 ```
 
 - 🔐 **Linux** installs a small privileged helper (`cap_net_raw` only) and a `zelos-packet` group; **macOS** installs a boot-time daemon that puts `/dev/bpf*` in the `access_bpf` group
-- ⚠️ Members of that group can **send** arbitrary frames on the machine, not only capture them
+- 🛡️ **Linux** group members can capture on the machine, nothing more — the helper drops every capability before it reads a byte and streams decoded packets, so it never hands out a socket anyone could send with
+- ⚠️ **macOS** `access_bpf` members can also **send** arbitrary frames: a bpf device is opened read-write and capture needs the write side
 - 🔁 Log out and back in, then restart the agent — a session's groups are fixed at login
 - ✅ `python -m zelos_packet status` says whether capture would work right now
 - 🪟 Windows has no live capture this release — use `replay_pcap`
@@ -42,6 +43,10 @@ zelos extensions start packet-capture --config '{"replay_pcap": "capture.pcapng"
 Captures appear in the tree under **packet → your interface → packets**. Drag that node into
 the workspace for a packet panel; drag **stats** for a plot.
 
+On Linux without `CAP_NET_RAW` the capture runs in the privileged helper process and streams
+to the agent directly, so rows reach the tree the same way — `packet/check_permissions`
+reports which backend a Start would use.
+
 ## Settings
 
 | Setting | Default | |
@@ -61,7 +66,7 @@ the workspace for a packet panel; drag **stats** for a plot.
 | Action | |
 | --- | --- |
 | `packet/list_interfaces` | NICs on the machine running the agent |
-| `packet/check_permissions` | Can we capture? If not, the exact fix |
+| `packet/check_permissions` | Can we capture, and through which backend? If not, the exact fix |
 | `packet/capture_stats` | Per-interface counters and drop accounting |
 | `packet/convert_pcap` | Convert a pcap to `.trz`. Runs without the extension started |
 
