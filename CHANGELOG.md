@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   GIL-releasing `convert_file` runs. Missing `tqdm` logs an install hint rather
   than failing.
 
+### Changed
+- Log lines carry a UTC ISO 8601 timestamp with milliseconds, matching the
+  SDK's Rust tracing format in the same extension log stream.
+
 ### Fixed
 - A failed decode no longer leaves a stub `.trz` behind. The writer creates the
   file before the first packet, so a partial output was indistinguishable from
