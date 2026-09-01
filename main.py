@@ -2,6 +2,7 @@
 """Zelos Packet Capture extension - live network capture and pcap decode."""
 
 import logging
+import time
 from pathlib import Path
 
 import rich_click as click
@@ -22,8 +23,14 @@ click.rich_click.SHOW_ARGUMENTS = True
 click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 click.rich_click.STYLE_ERRORS_SUGGESTION = "yellow italic"
 
-# INFO level keeps debug chatter out of the backend.
-logging.basicConfig(level=logging.INFO)
+# INFO level keeps debug chatter out of the backend. UTC ISO 8601 with ms,
+# matching the SDK's Rust tracing lines in the same log stream.
+logging.Formatter.converter = time.gmtime
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s.%(msecs)03dZ %(levelname)5s %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
 
 handler = TraceLoggingHandler("packet_log")
 handler.setLevel(logging.INFO)
