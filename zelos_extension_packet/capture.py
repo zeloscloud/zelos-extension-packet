@@ -4,15 +4,10 @@ One :class:`CaptureSession` per configured interface, each backed by a
 ``zelos_packet.PacketCapture``. The session is the Start/Stop granularity the
 supervisor drives.
 
-``PacketCapture`` picks one of two backends at construction, and
-``capture.backend`` reports which:
-
-* ``"in-process"`` - macOS, and Linux where the agent process already holds
-  ``CAP_NET_RAW``. Rust owns the emit path in this process and the rows go
-  through the shared ``packet`` source below.
-* ``"helper"`` - Linux without that privilege. ``zelos-packet-helper`` runs the
-  capture in its own process, drops every capability before it reads a byte,
-  and streams decoded rows straight to the agent. Nothing passes through this
+``PacketCapture`` runs the capture in the ``zelos-packet-helper`` process on
+both platforms. The helper holds whatever privilege the open needs, drops it
+before it reads a byte on Linux, and streams decoded rows straight to the
+agent over its own SDK connection. Nothing passes through this
   process, so no source is handed over and the permission verdict arrives at
   Start rather than at construction.
 
@@ -27,6 +22,7 @@ from __future__ import annotations
 import logging
 import platform
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -255,8 +251,8 @@ at login. Check the grant with:
         # no longer a trap because the text now states it.
         #
         # The SEND caveat is genuinely platform-specific and stays only here:
-        # macOS captures in-process through a read-write bpf device, while the
-        # Linux grant runs a helper that never hands its socket out.
+        # /dev/bpf* is opened read-write, while the Linux grant gives the
+        # helper a capability it drops and never a socket it hands out.
         body = f"""
 Live capture reads /dev/bpf*, which is root-only by default on macOS. Grant
 access once, per machine:
@@ -413,7 +409,7 @@ class CaptureSession:
         the package is pinned `==`, so there is nothing to negotiate.
 
         ``agent_url`` is passed explicitly even though the package resolves the
-        same default: on the helper backend it decides where the rows go, and
+        same default: it decides where the helper's rows go, and
         the exclusion literals below were resolved from that same URL. Letting
         the two be derived independently is how a capture ends up excluding one
         endpoint and publishing to another.
@@ -434,33 +430,24 @@ class CaptureSession:
     def start(self) -> None:
         """Construct the capture and begin emitting.
 
-        `zelos_sdk.init()` must already have run: on the in-process backend the
+        `zelos_sdk.init()` must already have run: the
         source is resolved through the SDK's ABI capsule at construction time.
 
-        Construction picks the backend by attempting the in-process open, so a
-        privilege failure surfaces here rather than from a background thread -
-        either at construction (no backend available at all) or from `start()`
-        (the helper ran and the kernel refused it). Both are caught below and
-        both carry the same remediation.
+        A privilege failure surfaces synchronously rather than from a
+        background thread: at construction when no runnable helper is
+        installed, or from `start()` when the helper ran and the kernel
+        refused it. Both are caught below and carry the same remediation.
 
-        A source is handed over only on the in-process backend. On the helper
-        backend the rows are produced in another process, and passing one there
-        is a hard error precisely so it cannot look like silent data loss.
+        No source is handed over. There is one capture path now: the rows are
+        produced in the helper's process, behind its own SDK connection, and
+        passing a source here is a hard error precisely so it cannot look like
+        silent data loss.
         """
         try:
             module = pkg.module()
-            extra: dict[str, Any] = {}
-            # Asked before constructing, not discovered by catching the
-            # refusal: constructing an in-process capture without a source
-            # would auto-create a SECOND one named `packet`, which is exactly
-            # the collision `make_trace_source` exists to prevent.
-            if module.capture_backend(self.config.interface) == "in-process":
-                self._source = make_trace_source()
-                extra["source"] = self._source
             self._capture = module.PacketCapture(
                 log_frames=self.log_frames,
                 frame_snaplen=self.frame_snaplen,
-                **extra,
                 **self.capture_kwargs(),
             )
             self._capture.start()
@@ -483,12 +470,11 @@ class CaptureSession:
         else:
             frames = f"first {self.frame_snaplen} B"
         logger.info(
-            "Capturing %s into %s.%s/packets via the %s backend "
+            "Capturing %s into %s.%s/packets via the helper "
             "(snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
             self.config.interface,
             PACKET_SOURCE_NAME,
             self.config.name,
-            self._capture.backend,
             self.config.snaplen,
             self.config.promiscuous,
             self.config.buffer_size,
@@ -663,35 +649,35 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
             return denied("No network interfaces were reported by zelos-packet")
         target = str(pool[0]["name"])
 
-    # Ask which backend, never start: `capture_backend` runs the same
-    # attempted open the constructor runs, which is the entire question here,
-    # while `start()` would register this interface's two events and leave them
-    # in the live catalog on every permission check.
-    #
-    # It also builds nothing - no capture object, no trace source. Constructing
-    # one without passing a source would default a SECOND source named `packet`
-    # alongside the one the sessions use, which nothing rejects and which hides
-    # one of the two from `by_path` resolution.
+    # The package's own verdict, never a start: `status` answers exactly
+    # "will Start work?" (a runnable helper, the grant, and the kernel
+    # blockers that make a present xattr a lie), and it registers nothing in
+    # the live catalog. A subprocess because that verdict is only reachable
+    # through the CLI; it is the same command the remediation tells a user to
+    # run, so the two can never disagree.
     try:
-        backend = pkg.module().capture_backend(target)
+        proc = subprocess.run(
+            [sys.executable, "-m", "zelos_packet", "status"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
     except Exception as exc:
-        if pkg.is_permission_error(exc):
-            # str(exc) embeds the package's own remediation block; keep only
-            # its first line so callers printing reason + remediation don't
-            # show the instructions twice.
-            return denied(
-                f"Capture on {target!r} was denied: {str(exc).splitlines()[0]}",
-                target,
-                remediation=remediation_text(target),
-            )
         return denied(f"{type(exc).__name__}: {exc}", target)
-    else:
-        return {
-            "supported": True,
-            "can_capture": True,
-            "backend": backend,
-            "platform": system,
-            "interface": target,
-            "reason": "",
-            "remediation": "",
-        }
+    if proc.returncode != 0:
+        # The verdict line is the last non-empty line `status` prints.
+        lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+        return denied(
+            lines[-1] if lines else "zelos_packet status reported no capture privilege",
+            target,
+            remediation=remediation_text(target),
+        )
+    return {
+        "supported": True,
+        "can_capture": True,
+        "backend": "helper",
+        "platform": system,
+        "interface": target,
+        "reason": "",
+        "remediation": "",
+    }

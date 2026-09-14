@@ -62,7 +62,7 @@ dev = [
 # so `scripts/package_extension.py` strips this whole table (comments included)
 # out of the pyproject it archives. Keep the comments inside the table.
 # worktree path until zelos-packet merges to main; then ../src/api/py/zelos-packet
-zelos-packet = { path = "../src/.claude/worktrees/zelos-packet/api/py/zelos-packet", editable = true }
+zelos-packet = { path = "../src/.claude/worktrees/packet-final/api/py/zelos-packet", editable = true }
 
 [build-system]
 requires = ["hatchling"]

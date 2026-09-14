@@ -5,9 +5,12 @@ from __future__ import annotations
 
 import sys
 
+from types import SimpleNamespace
+
 import pytest
 
 from zelos_extension_packet.agent_filter import AgentEndpoint
+from zelos_extension_packet import capture as capture_mod
 from zelos_extension_packet.capture import (
     METRICS_FIELDS,
     STATS_FIELDS,
@@ -98,14 +101,11 @@ class TestExclusionParameters:
         assert capped.kwargs["frame_snaplen"] == 128
 
     def test_the_shared_source_and_a_per_capture_name_reach_the_core(self, fake_packet):
-        # Together these make the tree read `packet` -> `eth0` -> `packets`.
-        # The source has to be OUR shared one — letting the package default
-        # would build a second source also named `packet`, which nothing
-        # rejects and which hides one of the two from path resolution.
+        # `name` makes the tree read `packet` -> `eth0` -> `packets`; the
+        # source is the helper's own, never one passed from here.
         s = session(interface="eth0", name="eth0", endpoint=ENDPOINT)
         s.start()
         [capture] = FakeCapture.instances
-        assert capture.kwargs["source"].name == "packet"
         assert capture.kwargs["name"] == "eth0"
 
     def test_stats_use_the_packages_counter_names(self, fake_packet):
@@ -140,42 +140,17 @@ class TestExclusionParameters:
 
 
 class TestBackendSelection:
-    """Which process runs the capture decides whether a source is handed over.
+    """One capture path: the helper produces rows in its own process, behind
+    its own SDK connection, so a source is never handed over. `PacketCapture`
+    refuses one rather than accept a source no packet would reach."""
 
-    The helper backend produces its rows in another process with its own SDK
-    connection; `PacketCapture` refuses a source there rather than accept one
-    that would never receive a packet, so the session has to ask first.
-    """
-
-    def test_the_in_process_backend_gets_the_shared_source(self, fake_packet):
-        s = session(endpoint=ENDPOINT)
-        s.start()
-        [capture] = FakeCapture.instances
-        assert capture.kwargs["source"] is not None
-
-    def test_the_helper_backend_is_handed_no_source(self, monkeypatch):
-        install_fake(monkeypatch, backend="helper")
+    def test_the_capture_is_handed_no_source(self, fake_packet):
         s = session(endpoint=ENDPOINT)
         s.start()
         [capture] = FakeCapture.instances
         assert capture.kwargs["source"] is None
         assert capture.started
 
-    def test_the_backend_is_asked_before_anything_is_constructed(self, monkeypatch):
-        """Constructing to find out would default a SECOND source named
-        `packet` on the in-process path, which is the collision
-        `make_trace_source` exists to prevent."""
-        module = install_fake(monkeypatch)
-        asked: list[str] = []
-
-        def record(interface):
-            assert FakeCapture.instances == [], "a capture existed before the backend was known"
-            asked.append(interface)
-            return "in-process"
-
-        module.capture_backend = record
-        session(interface="eth0", name="eth0", endpoint=ENDPOINT).start()
-        assert asked == ["eth0"]
 
 
 class TestPermissionDenied:
@@ -223,19 +198,33 @@ class TestPermissionDenied:
         with pytest.raises(OSError, match="device is down"):
             session(endpoint=ENDPOINT).start()
 
-    def test_probe_reports_can_capture_and_which_backend(self, fake_packet):
+    def test_probe_reports_can_capture_from_the_packages_own_verdict(self, fake_packet, monkeypatch):
+        """`status` is the package's answer to "will Start work?"; a zero exit
+        is the whole verdict, and the probe must not start a capture to learn
+        it (that would register the interface's events in the live catalog)."""
+        monkeypatch.setattr(
+            capture_mod.subprocess, "run",
+            lambda *a, **k: SimpleNamespace(returncode=0, stdout="capture is AVAILABLE", stderr=""),
+        )
         result = probe_permissions()
         assert result["can_capture"] is True
-        assert result["backend"] == "in-process"
+        assert result["backend"] == "helper"
         # First interface that is up and not loopback.
         assert result["interface"] == "en0"
+        assert FakeCapture.instances == []
 
-    def test_probe_reports_the_helper_backend_when_that_is_what_would_run(self, monkeypatch):
-        """Which process would open the socket is part of the answer: on the
-        helper backend the verdict here is "a runnable helper is installed",
-        not "the kernel will honor its capability"."""
-        install_fake(monkeypatch, backend="helper")
-        assert probe_permissions("en0")["backend"] == "helper"
+    def test_probe_reports_the_status_verdict_when_capture_is_refused(self, fake_packet, monkeypatch):
+        monkeypatch.setattr(
+            capture_mod.subprocess, "run",
+            lambda *a, **k: SimpleNamespace(
+                returncode=1, stdout="wheel helper absent\ncapture is NOT available: run install-helper", stderr=""
+            ),
+        )
+        result = probe_permissions()
+        assert result["can_capture"] is False
+        assert "NOT available" in result["reason"]
+        assert result["remediation"]
+
 
     def test_probe_returns_remediation_instead_of_raising(self, monkeypatch):
         module = install_fake(monkeypatch)
