@@ -3,7 +3,7 @@
   "type": "object",
   "additionalProperties": false,
   "title": "Packet Configuration",
-  "description": "Capture packets from one or more network interfaces, or decode a pcap file. Live capture is supported on Linux (AF_PACKET) and macOS (/dev/bpf) and needs elevated privileges - run the 'Check permissions' action first. Decoding a pcap needs no privileges at all.",
+  "description": "Pick the interfaces to capture, save, then start. Everything else is under Advanced and has defaults that suit most captures. Live capture needs a one-time grant on the machine running the agent; run the Check permissions action first. Decoding a pcap file needs no privileges at all.",
   "properties": {
     "interfaces": {
       "type": "array",
@@ -36,6 +36,7 @@
     "snaplen": {
       "type": "integer",
       "title": "Snapshot Length (bytes captured)",
+      "ui:advanced": true,
       "description": "Bytes captured per packet on every interface; the rest is truncated by the kernel. This is the CAPTURE limit - what reaches the decoder at all. 512 keeps the whole embedded/industrial control plane byte-complete - every legal Modbus-TCP frame (MBAP 7 + PDU up to 253, about 314 B once Ethernet/IP/TCP headers are counted), DHCP (whose semantics live in the options after the 236-byte BOOTP area), DNS and mDNS responses, MQTT CONNECT, DoIP, SOME/IP and PTP - while cutting bulk transfers so a file copy does not fill the trace. 128 would break DHCP and DNS responses outright. Raise it only when you need full payloads.",
       "default": 512,
       "minimum": 64,
@@ -44,6 +45,7 @@
     "promiscuous": {
       "type": "boolean",
       "title": "Promiscuous Mode",
+      "ui:advanced": true,
       "description": "Capture every frame on the segment, not just frames addressed to this host, on every interface. Off by default: on a switched network it mostly adds noise, and some drivers and VM NICs lose throughput sharply in promiscuous mode. Turn it on when capturing from a mirror/SPAN port or a tap.",
       "default": false,
       "ui:widget": "toggle"
@@ -51,6 +53,7 @@
     "buffer_size": {
       "type": "integer",
       "title": "Kernel Buffer Size (bytes)",
+      "ui:advanced": true,
       "description": "Kernel capture buffer, per interface. Larger buffers absorb bursts without kernel drops, at the cost of RAM. If the 'dropped' counter in the 'Capture stats' action climbs, raise this.",
       "default": 8388608,
       "minimum": 65536,
@@ -59,6 +62,7 @@
     "replay_pcap": {
       "type": "string",
       "title": "Replay PCAP File",
+      "ui:advanced": true,
       "description": "Decode a .pcap/.pcapng file instead of capturing live. This path opens no capture handle and needs no privileges, so it works on any machine - use it to try the extension, or to analyze a capture someone sent you. When set, the Interfaces list is ignored and the extension exits once the file is decoded.",
       "ui:widget": "file-picker",
       "ui:options": {
@@ -68,6 +72,7 @@
     "log_frames": {
       "type": "boolean",
       "title": "Log Raw Frames",
+      "ui:advanced": true,
       "description": "Populate the 'frame' Binary column with the captured bytes (up to Frame Bytes Stored). Turn it off to keep only decoded header fields, which makes traces far smaller.",
       "default": true,
       "ui:widget": "toggle"
@@ -78,6 +83,7 @@
         "null"
       ],
       "title": "Frame Bytes Stored",
+      "ui:advanced": true,
       "description": "Bytes of each captured packet kept in the 'frame' column. This is the STORAGE limit, not a capture limit: dissection always reads every captured byte, so the decoded columns are the same whatever this is set to, and 'orig_len'/'cap_len'/'truncated' keep describing capture truncation rather than this. null (the default) stores every captured byte, so the Snapshot Length is the single byte budget and the control plane stays byte-complete in the frame column - Modbus-TCP, DHCP, DNS/mDNS. Set a number to store only a prefix and shrink traces.",
       "default": null,
       "minimum": 1
@@ -85,6 +91,7 @@
     "log_level": {
       "type": "string",
       "title": "Log Level",
+      "ui:advanced": true,
       "description": "Logging verbosity for the extension.",
       "enum": [
         "DEBUG",
