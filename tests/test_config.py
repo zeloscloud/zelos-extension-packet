@@ -35,8 +35,9 @@ class TestSchemaDefaults:
     def test_empty_config_gets_every_top_level_default(self, tmp_path: Path):
         config = load(tmp_path, {})
         assert config["interfaces"] == []
-        # Everything else lives under Advanced: one set of capture settings for every interface, and the
-        # loader fills the nested defaults even when the object itself was absent.
+        # Everything else lives under Advanced: one set of capture settings for every
+        # interface, and the loader fills the nested defaults even when the object
+        # itself was absent.
         advanced = config["advanced"]
         assert advanced["log_frames"] is True
         assert advanced["log_level"] == "INFO"
