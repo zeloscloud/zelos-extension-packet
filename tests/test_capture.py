@@ -4,13 +4,12 @@ capture handle tells the user."""
 from __future__ import annotations
 
 import sys
-
 from types import SimpleNamespace
 
 import pytest
 
-from zelos_extension_packet.agent_filter import AgentEndpoint
 from zelos_extension_packet import capture as capture_mod
+from zelos_extension_packet.agent_filter import AgentEndpoint
 from zelos_extension_packet.capture import (
     METRICS_FIELDS,
     STATS_FIELDS,
@@ -90,23 +89,32 @@ class TestExclusionParameters:
         assert capture.kwargs["log_frames"] is False
         assert capture.started
 
-    def test_frame_snaplen_defaults_to_store_everything_captured(self, fake_packet):
+    def test_stored_frame_bytes_defaults_to_store_everything_captured(self, fake_packet):
         """The extension's byte budget is `snaplen` alone: by default every
-        captured byte is stored (`frame_snaplen=None`), so the 512 control-plane
-        rationale holds end-to-end. An explicit cap must survive to the core."""
+        captured byte is stored (`stored_frame_bytes=None`), so the 512
+        control-plane rationale holds end-to-end. The capture limit and the
+        storage limit are separate knobs, and an explicit cap must survive to
+        the core."""
         session(endpoint=ENDPOINT).start()
-        session(endpoint=ENDPOINT, frame_snaplen=128).start()
+        session(endpoint=ENDPOINT, stored_frame_bytes=128).start()
         default, capped = FakeCapture.instances
-        assert (default.kwargs["snaplen"], default.kwargs["frame_snaplen"]) == (512, None)
-        assert capped.kwargs["frame_snaplen"] == 128
+        assert (default.kwargs["snaplen"], default.kwargs["stored_frame_bytes"]) == (512, None)
+        assert capped.kwargs["stored_frame_bytes"] == 128
 
     def test_the_shared_source_and_a_per_capture_name_reach_the_core(self, fake_packet):
-        # `name` makes the tree read `packet` -> `eth0` -> `packets`; the
+        # `name` makes the tree read `Packet` -> `eth0` -> `packets`; the
         # source is the helper's own, never one passed from here.
         s = session(interface="eth0", name="eth0", endpoint=ENDPOINT)
         s.start()
         [capture] = FakeCapture.instances
         assert capture.kwargs["name"] == "eth0"
+
+    def test_the_source_name_and_the_action_prefix_agree(self):
+        """One user-visible name: actions at `Packet/list_interfaces`, catalog
+        paths at `Packet.en0/packets`. Two constants, so assert they agree."""
+        from zelos_extension_packet import ACTION_PREFIX
+
+        assert capture_mod.PACKET_SOURCE_NAME == ACTION_PREFIX == "Packet"
 
     def test_stats_use_the_packages_counter_names(self, fake_packet):
         s = session(endpoint=ENDPOINT)
@@ -150,7 +158,6 @@ class TestBackendSelection:
         [capture] = FakeCapture.instances
         assert capture.kwargs["source"] is None
         assert capture.started
-
 
 
 class TestPermissionDenied:
@@ -198,12 +205,15 @@ class TestPermissionDenied:
         with pytest.raises(OSError, match="device is down"):
             session(endpoint=ENDPOINT).start()
 
-    def test_probe_reports_can_capture_from_the_packages_own_verdict(self, fake_packet, monkeypatch):
+    def test_probe_reports_can_capture_from_the_packages_own_verdict(
+        self, fake_packet, monkeypatch
+    ):
         """`status` is the package's answer to "will Start work?"; a zero exit
         is the whole verdict, and the probe must not start a capture to learn
         it (that would register the interface's events in the live catalog)."""
         monkeypatch.setattr(
-            capture_mod.subprocess, "run",
+            capture_mod.subprocess,
+            "run",
             lambda *a, **k: SimpleNamespace(returncode=0, stdout="capture is AVAILABLE", stderr=""),
         )
         result = probe_permissions()
@@ -213,11 +223,16 @@ class TestPermissionDenied:
         assert result["interface"] == "en0"
         assert FakeCapture.instances == []
 
-    def test_probe_reports_the_status_verdict_when_capture_is_refused(self, fake_packet, monkeypatch):
+    def test_probe_reports_the_status_verdict_when_capture_is_refused(
+        self, fake_packet, monkeypatch
+    ):
         monkeypatch.setattr(
-            capture_mod.subprocess, "run",
+            capture_mod.subprocess,
+            "run",
             lambda *a, **k: SimpleNamespace(
-                returncode=1, stdout="wheel helper absent\ncapture is NOT available: run install-helper", stderr=""
+                returncode=1,
+                stdout="wheel helper absent\ncapture is NOT available: run install-helper",
+                stderr="",
             ),
         )
         result = probe_permissions()
@@ -225,21 +240,23 @@ class TestPermissionDenied:
         assert "NOT available" in result["reason"]
         assert result["remediation"]
 
-
-    def test_probe_returns_remediation_instead_of_raising(self, monkeypatch):
-        module = install_fake(monkeypatch)
-
-        def denied(_interface):
-            raise PermissionError(1, "Operation not permitted")
-
-        module.capture_backend = denied
+    def test_probe_returns_remediation_instead_of_raising(self, fake_packet, monkeypatch):
+        """A refusal is an answer, not an exception: callers want the
+        remediation either way, so the probe never raises."""
+        monkeypatch.setattr(
+            capture_mod.subprocess,
+            "run",
+            lambda *a, **k: SimpleNamespace(
+                returncode=1, stdout="capture is NOT available: run install-helper", stderr=""
+            ),
+        )
         result = probe_permissions("en0")
         assert result["can_capture"] is False
         assert FAKE_REMEDIATION in result["remediation"]
         assert "Replay PCAP File" in result["remediation"]
 
     def test_probe_constructs_nothing_at_all(self, fake_packet):
-        """Constructing would default a SECOND source named `packet` alongside
+        """Constructing would default a SECOND source named `Packet` alongside
         the sessions' shared one, and starting would register the pkt schemas -
         a permission check must leave neither behind."""
         probe_permissions("en0")

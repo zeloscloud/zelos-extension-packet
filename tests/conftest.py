@@ -99,9 +99,9 @@ class FakeCapture:
         promiscuous=False,
         buffer_bytes=2 * 1024 * 1024,
         immediate=False,
-        source_name="packet",
+        source_name="Packet",
         log_frames=True,
-        frame_snaplen=256,
+        stored_frame_bytes=256,
         stats_interval=1.0,
         exclude_agent_addrs=None,
         exclude_agent_port=None,
@@ -118,7 +118,7 @@ class FakeCapture:
             "source_name": source_name,
             "name": name,
             "log_frames": log_frames,
-            "frame_snaplen": frame_snaplen,
+            "stored_frame_bytes": stored_frame_bytes,
             "stats_interval": stats_interval,
             "exclude_agent_addrs": exclude_agent_addrs,
             "exclude_agent_port": exclude_agent_port,
@@ -176,10 +176,10 @@ class FakeDecoder:
     def __init__(
         self,
         name="capture",
-        source_name="packet",
+        source_name="Packet",
         iface=None,
         log_frames=True,
-        frame_snaplen=256,
+        stored_frame_bytes=256,
         emit_schemas_on_init=False,
         source=None,
         exclude_agent_addrs=None,
@@ -190,7 +190,7 @@ class FakeDecoder:
             "source_name": source_name,
             "iface": iface,
             "log_frames": log_frames,
-            "frame_snaplen": frame_snaplen,
+            "stored_frame_bytes": stored_frame_bytes,
             "emit_schemas_on_init": emit_schemas_on_init,
             "source": source,
             "exclude_agent_addrs": exclude_agent_addrs,
@@ -239,7 +239,7 @@ class FakeTraceSource:
     """
 
     def __init__(self, namespace=None, *, cached: bool = True) -> None:
-        self.name = "packet"
+        self.name = "Packet"
         self.namespace = namespace
         self.cached = cached
 

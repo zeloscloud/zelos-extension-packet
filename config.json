@@ -1,6 +1,6 @@
 {
   "interfaces": [],
   "log_frames": true,
-  "frame_snaplen": null,
+  "stored_frame_bytes": null,
   "log_level": "INFO"
 }

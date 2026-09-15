@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "title": "Packet Capture Configuration",
+  "title": "Packet Configuration",
   "description": "Capture packets from one or more network interfaces, or decode a pcap file. Live capture is supported on Linux (AF_PACKET) and macOS (/dev/bpf) and needs elevated privileges - run the 'Check permissions' action first. Decoding a pcap needs no privileges at all.",
   "properties": {
     "interfaces": {
       "type": "array",
       "title": "Interfaces",
-      "description": "Interfaces to capture from, in parallel. They share the one 'packet' trace source and appear side by side under it, one branch per capture. Leave empty when using Replay PCAP File.",
+      "description": "Interfaces to capture from, in parallel. They share the one 'Packet' trace source and appear side by side under it, one branch per capture. The capture settings below apply to every one of them. Leave empty when using Replay PCAP File.",
       "items": {
         "title": "Interface",
         "type": "object",
@@ -23,31 +23,8 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Names this capture's branch in the signal tree. Defaults to the interface name, which is usually what you want. Dots, colons, '@' and '/' are replaced with '_' because they are catalog path separators, so a VLAN device eth0.100 becomes eth0_100. Every capture shares the one 'packet' source, so each name must be unique.",
+            "description": "Names this capture's branch in the signal tree. Defaults to the interface name, which is usually what you want. Dots, colons, '@' and '/' are replaced with '_' because they are catalog path separators, so a VLAN device eth0.100 becomes eth0_100. Every capture shares the one 'Packet' source, so each name must be unique.",
             "ui:placeholder": "defaults to the interface name"
-          },
-          "snaplen": {
-            "type": "integer",
-            "title": "Snapshot Length (bytes)",
-            "description": "Bytes captured per packet; the rest is truncated. 512 keeps the whole embedded/industrial control plane byte-complete - every legal Modbus-TCP frame (MBAP 7 + PDU up to 253, about 314 B once Ethernet/IP/TCP headers are counted), DHCP (whose semantics live in the options after the 236-byte BOOTP area), DNS and mDNS responses, MQTT CONNECT, DoIP, SOME/IP and PTP - while cutting bulk transfers so a file copy does not fill the trace. 128 would break DHCP and DNS responses outright. Raise it only when you need full payloads.",
-            "default": 512,
-            "minimum": 64,
-            "maximum": 262144
-          },
-          "promiscuous": {
-            "type": "boolean",
-            "title": "Promiscuous Mode",
-            "description": "Capture every frame on the segment, not just frames addressed to this host. Off by default: on a switched network it mostly adds noise, and some drivers and VM NICs lose throughput sharply in promiscuous mode. Turn it on when capturing from a mirror/SPAN port or a tap.",
-            "default": false,
-            "ui:widget": "toggle"
-          },
-          "buffer_size": {
-            "type": "integer",
-            "title": "Kernel Buffer Size (bytes)",
-            "description": "Kernel capture buffer for this interface. Larger buffers absorb bursts without kernel drops, at the cost of RAM. If the 'dropped' counter in the 'Capture stats' action climbs, raise this.",
-            "default": 8388608,
-            "minimum": 65536,
-            "maximum": 268435456
           }
         },
         "required": [
@@ -55,6 +32,29 @@
         ]
       },
       "default": []
+    },
+    "snaplen": {
+      "type": "integer",
+      "title": "Snapshot Length (bytes captured)",
+      "description": "Bytes captured per packet on every interface; the rest is truncated by the kernel. This is the CAPTURE limit - what reaches the decoder at all. 512 keeps the whole embedded/industrial control plane byte-complete - every legal Modbus-TCP frame (MBAP 7 + PDU up to 253, about 314 B once Ethernet/IP/TCP headers are counted), DHCP (whose semantics live in the options after the 236-byte BOOTP area), DNS and mDNS responses, MQTT CONNECT, DoIP, SOME/IP and PTP - while cutting bulk transfers so a file copy does not fill the trace. 128 would break DHCP and DNS responses outright. Raise it only when you need full payloads.",
+      "default": 512,
+      "minimum": 64,
+      "maximum": 262144
+    },
+    "promiscuous": {
+      "type": "boolean",
+      "title": "Promiscuous Mode",
+      "description": "Capture every frame on the segment, not just frames addressed to this host, on every interface. Off by default: on a switched network it mostly adds noise, and some drivers and VM NICs lose throughput sharply in promiscuous mode. Turn it on when capturing from a mirror/SPAN port or a tap.",
+      "default": false,
+      "ui:widget": "toggle"
+    },
+    "buffer_size": {
+      "type": "integer",
+      "title": "Kernel Buffer Size (bytes)",
+      "description": "Kernel capture buffer, per interface. Larger buffers absorb bursts without kernel drops, at the cost of RAM. If the 'dropped' counter in the 'Capture stats' action climbs, raise this.",
+      "default": 8388608,
+      "minimum": 65536,
+      "maximum": 268435456
     },
     "replay_pcap": {
       "type": "string",
@@ -68,17 +68,17 @@
     "log_frames": {
       "type": "boolean",
       "title": "Log Raw Frames",
-      "description": "Populate the 'frame' Binary column with the captured bytes (up to the frame storage limit). Turn it off to keep only decoded header fields, which makes traces far smaller.",
+      "description": "Populate the 'frame' Binary column with the captured bytes (up to Frame Bytes Stored). Turn it off to keep only decoded header fields, which makes traces far smaller.",
       "default": true,
       "ui:widget": "toggle"
     },
-    "frame_snaplen": {
+    "stored_frame_bytes": {
       "type": [
         "integer",
         "null"
       ],
-      "title": "Frame Storage Limit (bytes)",
-      "description": "Bytes of each packet stored in the 'frame' column. Storage only: dissection always reads every captured byte, so the decoded columns are the same whatever this is set to, and 'orig_len'/'cap_len'/'truncated' keep describing capture truncation rather than this limit. null (the default) stores every captured byte, so the snapshot length is the single byte budget and the control plane stays byte-complete in the frame column - Modbus-TCP, DHCP, DNS/mDNS. Set a number to store only a prefix and shrink traces.",
+      "title": "Frame Bytes Stored",
+      "description": "Bytes of each captured packet kept in the 'frame' column. This is the STORAGE limit, not a capture limit: dissection always reads every captured byte, so the decoded columns are the same whatever this is set to, and 'orig_len'/'cap_len'/'truncated' keep describing capture truncation rather than this. null (the default) stores every captured byte, so the Snapshot Length is the single byte budget and the control plane stays byte-complete in the frame column - Modbus-TCP, DHCP, DNS/mDNS. Set a number to store only a prefix and shrink traces.",
       "default": null,
       "minimum": 1
     },

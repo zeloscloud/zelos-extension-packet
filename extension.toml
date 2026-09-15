@@ -1,7 +1,7 @@
-# Zelos Packet Capture Extension Manifest
+# Zelos Packet Extension Manifest
 # See https://docs.zeloscloud.io/sdk/how-to/develop-extensions/ for full documentation
 
-name = "Packet Capture"
+name = "Packet"
 version = "0.0.1"
 description = "Live network packet capture and pcap decode for Zelos"
 author = "Zelos"
@@ -13,7 +13,6 @@ categories = ["Networking", "Industrial", "IoT"]
 # File references (relative paths in archive)
 icon = "assets/icon.svg"
 readme = "README.md"
-changelog = "CHANGELOG.md"
 
 # Compatibility floor: 26.0.4 is the first release whose extension host ships the
 # config/actions surface this extension relies on (same floor as zelos-extension-can).
@@ -42,4 +41,4 @@ grace_seconds = 15
 # `config.json` ships so a fresh install has sane defaults before the app writes
 # its own.
 [package]
-paths = ["main.py", "zelos_extension_packet", "config.json", "CHANGELOG.md"]
+paths = ["main.py", "zelos_extension_packet", "config.json"]

@@ -1,4 +1,4 @@
-"""Zelos Packet Capture extension.
+"""Zelos Packet extension.
 
 Live network capture (Linux AF_PACKET, macOS /dev/bpf) and pcap decode, driven
 by the Rust-cored `zelos-packet` package.
@@ -19,11 +19,11 @@ from .capture import (
 #: registration (`zelos_sdk.init(name=ACTION_PREFIX, actions=True)`) and the
 #: at-rest inventory the packaging step dumps from `main.py`, which re-exports
 #: it. Nothing binds the two, so a mismatch silently produces two unrelated
-#: action trees - `packet/convert_pcap` live and `main/convert_pcap` at rest.
+#: action trees - `Packet/convert_pcap` live and `main/convert_pcap` at rest.
 #:
-#: Also the trace source every capture writes into, so the address a user reads
-#: in the app is the one they type.
-ACTION_PREFIX = "packet"
+#: Also the trace source every capture writes into (`PACKET_SOURCE_NAME`), so
+#: the address a user reads in the app is the one they type.
+ACTION_PREFIX = "Packet"
 
 __all__ = [
     "ACTION_PREFIX",

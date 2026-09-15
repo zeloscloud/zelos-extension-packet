@@ -42,7 +42,7 @@ class TestReplay:
         replay_pcap(pcap, name="eth0.100")
         # Dots are catalog path separators, so they never reach an event name.
         assert decoders[0].kwargs["name"] == "eth0_100"
-        assert decoders[0].kwargs["source"].name == "packet"
+        assert decoders[0].kwargs["source"].name == "Packet"
 
     def test_log_frames_is_forwarded(self, fake_packet, sample_pcap: Path):
         decoders = spy_on_decoder(fake_packet)

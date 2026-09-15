@@ -1,4 +1,4 @@
-"""Free-floating packet actions registered under ``packet/<name>``.
+"""Free-floating packet actions registered under ``Packet/<name>``.
 
 Same shape as the CAN extension: free functions (so ``choices=`` can reference a
 module-level callable), a shared registry populated by ``cli.py`` at startup, and
@@ -177,8 +177,8 @@ def convert_pcap(
 def register_actions(registry: ActionsRegistry) -> list[str]:
     """Register every ``@action``-decorated free function by its bare name.
 
-    The ``packet/`` prefix consumers see comes from
-    ``zelos_sdk.init(name="packet", actions=True)``.
+    The ``Packet/`` prefix consumers see comes from
+    ``zelos_sdk.init(name="Packet", actions=True)``.
     """
     module = sys.modules[__name__]
     registered: list[str] = []

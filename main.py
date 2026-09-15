@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zelos Packet Capture extension - live network capture and pcap decode."""
+"""Zelos Packet extension - live network capture and pcap decode."""
 
 import logging
 from pathlib import Path
@@ -25,7 +25,8 @@ click.rich_click.STYLE_ERRORS_SUGGESTION = "yellow italic"
 # INFO level keeps debug chatter out of the backend.
 logging.basicConfig(level=logging.INFO)
 
-handler = TraceLoggingHandler("packet_log")
+# `<ACTION_PREFIX>_log`: the log source reads the same as every other name.
+handler = TraceLoggingHandler(f"{ACTION_PREFIX}_log")
 handler.setLevel(logging.INFO)
 logging.getLogger().addHandler(handler)
 

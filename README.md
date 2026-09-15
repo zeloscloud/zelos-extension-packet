@@ -1,4 +1,4 @@
-# Packet Capture
+# Packet
 
 Live network capture and pcap decode, in your Zelos workspace.
 
@@ -28,8 +28,8 @@ sudo /path/to/python -m zelos_packet install-helper
 ## Quick start
 
 ```bash
-zelos extensions install packet-capture
-zelos extensions start packet-capture --config '{"interfaces": [{"interface": "en0"}]}'
+zelos extensions install packet
+zelos extensions start packet --config '{"interfaces": [{"interface": "en0"}]}'
 ```
 
 If the rights above are missing, the extension stops on start and logs the exact command to fix it.
@@ -37,14 +37,14 @@ If the rights above are missing, the extension stops on start and logs the exact
 Decoding a file needs no privileges and no NIC:
 
 ```bash
-zelos extensions start packet-capture --config '{"replay_pcap": "capture.pcapng"}'
+zelos extensions start packet --config '{"replay_pcap": "capture.pcapng"}'
 ```
 
-Captures appear in the tree under **packet → your interface → packets**. Drag that node into
+Captures appear in the tree under **Packet → your interface → packets**. Drag that node into
 the workspace for a packet panel; drag **stats** for a plot.
 
 On Linux without `CAP_NET_RAW` the capture runs in the privileged helper process and streams
-to the agent directly, so rows reach the tree the same way — `packet/check_permissions`
+to the agent directly, so rows reach the tree the same way — `Packet/check_permissions`
 reports which backend a Start would use.
 
 ## Settings
@@ -53,22 +53,22 @@ reports which backend a Start would use.
 | --- | --- | --- |
 | `interfaces[].interface` | – | NIC to capture |
 | `interfaces[].name` | interface name | Names this capture's branch in the tree |
-| `interfaces[].snaplen` | `512` | Bytes captured per packet; raise for full payloads |
-| `interfaces[].promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
-| `interfaces[].buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
+| `snaplen` | `512` | Bytes captured per packet, on every interface; raise for full payloads |
+| `promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
+| `buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
 | `replay_pcap` | – | Decode a file instead of capturing |
 | `log_frames` | `true` | Store raw bytes in the `frame` column |
-| `frame_snaplen` | `null` | Bytes stored per packet; `null` stores everything captured |
+| `stored_frame_bytes` | `null` | Bytes stored per packet; `null` stores everything captured |
 | `log_level` | `INFO` | |
 
 ## Actions
 
 | Action | |
 | --- | --- |
-| `packet/list_interfaces` | NICs on the machine running the agent |
-| `packet/check_permissions` | Can we capture, and through which backend? If not, the exact fix |
-| `packet/capture_stats` | Per-interface counters and drop accounting |
-| `packet/convert_pcap` | Convert a pcap to `.trz`. Runs without the extension started |
+| `Packet/list_interfaces` | NICs on the machine running the agent |
+| `Packet/check_permissions` | Can we capture, and through which backend? If not, the exact fix |
+| `Packet/capture_stats` | Per-interface counters and drop accounting |
+| `Packet/convert_pcap` | Convert a pcap to `.trz`. Runs without the extension started |
 
 ## CLI
 

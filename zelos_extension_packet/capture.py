@@ -11,9 +11,9 @@ agent over its own SDK connection. Nothing passes through this
   process, so no source is handed over and the permission verdict arrives at
   Start rather than at construction.
 
-Every session writes into ONE trace source, ``packet``, and is told apart by
+Every session writes into ONE trace source, ``Packet``, and is told apart by
 its name, which becomes the prefix of its two events - so the tree reads
-``packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields. That holds on both
+``Packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields. That holds on both
 backends: the helper is given the same source name and event prefix.
 """
 
@@ -44,11 +44,12 @@ DEFAULT_PROMISCUOUS = False
 #: the extension already bounds its byte budget with `DEFAULT_SNAPLEN` (512,
 #: chosen to keep the control plane byte-complete), and storing less than we
 #: capture would defeat that rationale.
-DEFAULT_FRAME_SNAPLEN: int | None = None
+DEFAULT_STORED_FRAME_BYTES: int | None = None
 
 #: The one trace source every capture writes into. Sessions are told apart by
-#: their event-name prefix, not by source; see the module docstring.
-PACKET_SOURCE_NAME = "packet"
+#: their event-name prefix, not by source; see the module docstring. Equals
+#: `ACTION_PREFIX`: one user-visible name for actions and catalog paths alike.
+PACKET_SOURCE_NAME = "Packet"
 
 #: Catalog path separators. A VLAN interface is literally named `eth0.100`, so
 #: this is not hypothetical: an unsanitized name breaks `agent.latest` lookups.
@@ -140,6 +141,10 @@ def sanitize_capture_name(raw: str) -> str:
 def parse_interfaces(config: dict) -> list[InterfaceConfig]:
     """Turn the `interfaces` array into :class:`InterfaceConfig` values.
 
+    `snaplen`, `promiscuous` and `buffer_size` are top-level settings fanned
+    out to every interface: one byte budget for the whole capture, which is how
+    the CLI's single `--snaplen` has always behaved.
+
     Defaults are applied here as well as in the JSON Schema, so CLI callers -
     which never go through `load_config` - get identical behaviour.
 
@@ -153,6 +158,10 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
     entries = config.get("interfaces") or []
     if not isinstance(entries, list):
         raise ConfigError("'interfaces' must be a list of capture configurations")
+
+    snaplen = int(config.get("snaplen") or DEFAULT_SNAPLEN)
+    promiscuous = bool(config.get("promiscuous", DEFAULT_PROMISCUOUS))
+    buffer_size = int(config.get("buffer_size") or DEFAULT_BUFFER_SIZE)
 
     parsed: list[InterfaceConfig] = []
     seen: dict[str, str] = {}
@@ -185,9 +194,9 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
             InterfaceConfig(
                 interface=interface,
                 name=name,
-                snaplen=int(entry.get("snaplen") or DEFAULT_SNAPLEN),
-                promiscuous=bool(entry.get("promiscuous", DEFAULT_PROMISCUOUS)),
-                buffer_size=int(entry.get("buffer_size") or DEFAULT_BUFFER_SIZE),
+                snaplen=snaplen,
+                promiscuous=promiscuous,
+                buffer_size=buffer_size,
             )
         )
 
@@ -393,7 +402,7 @@ class CaptureSession:
     config: InterfaceConfig
     endpoint: AgentEndpoint | None = None
     log_frames: bool = True
-    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN
+    stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES
     _capture: Any = field(default=None, init=False, repr=False)
     _source: Any = field(default=None, init=False, repr=False)
 
@@ -447,7 +456,7 @@ class CaptureSession:
             module = pkg.module()
             self._capture = module.PacketCapture(
                 log_frames=self.log_frames,
-                frame_snaplen=self.frame_snaplen,
+                stored_frame_bytes=self.stored_frame_bytes,
                 **self.capture_kwargs(),
             )
             self._capture.start()
@@ -465,10 +474,10 @@ class CaptureSession:
 
         if not self.log_frames:
             frames = "off"
-        elif self.frame_snaplen is None:
+        elif self.stored_frame_bytes is None:
             frames = "whole frame"
         else:
-            frames = f"first {self.frame_snaplen} B"
+            frames = f"first {self.stored_frame_bytes} B"
         logger.info(
             "Capturing %s into %s.%s/packets via the helper "
             "(snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
@@ -549,14 +558,14 @@ def make_decoder(
     name: str,
     *,
     log_frames: bool = True,
-    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN,
+    stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
     namespace: Any = None,
     cached: bool = True,
 ) -> Any:
     """A ``PacketDecoder`` emitting into `namespace` under a sanitized `name`.
 
-    Rows land at ``packet.{name}/packets.<field>``: the decoder shares the
-    ``packet`` source with every live capture and is told apart by `name`,
+    Rows land at ``Packet.{name}/packets.<field>``: the decoder shares the
+    ``Packet`` source with every live capture and is told apart by `name`,
     exactly as a capture is.
 
     Shared by replay (global namespace, streaming to an agent) and by
@@ -569,7 +578,7 @@ def make_decoder(
         name=sanitize_capture_name(name),
         source=source,
         log_frames=log_frames,
-        frame_snaplen=frame_snaplen,
+        stored_frame_bytes=stored_frame_bytes,
     )
 
 
@@ -578,7 +587,7 @@ def replay_pcap(
     *,
     name: str = "pcap",
     log_frames: bool = True,
-    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN,
+    stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
 ) -> dict[str, Any]:
     """Decode a pcap/pcapng into the *live* trace namespace. No privileges required.
 
@@ -593,7 +602,7 @@ def replay_pcap(
     logger.info(
         "Replaying %s into %s.%s/packets", pcap, PACKET_SOURCE_NAME, sanitize_capture_name(name)
     )
-    decoder = make_decoder(name, log_frames=log_frames, frame_snaplen=frame_snaplen)
+    decoder = make_decoder(name, log_frames=log_frames, stored_frame_bytes=stored_frame_bytes)
     count = decoder.convert_file(str(pcap))
     decoder.flush()
     logger.info("Replay of %s complete: %d packets", pcap.name, count)

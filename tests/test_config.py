@@ -37,6 +37,12 @@ class TestSchemaDefaults:
         assert config["log_frames"] is True
         assert config["log_level"] == "INFO"
         assert config["interfaces"] == []
+        # Capture settings are global, one set for every interface.
+        assert config["snaplen"] == 512
+        assert config["promiscuous"] is False
+        assert config["buffer_size"] == 8 * 1024 * 1024
+        # `stored_frame_bytes` defaults to null, which the schema default-filler
+        # leaves absent; `cli.run_app_mode` reads it with the same fallback.
 
     def test_exclude_agent_traffic_is_not_configurable(self, tmp_path: Path):
         # Disabling exclusion on an interface carrying the agent's stream
@@ -46,12 +52,9 @@ class TestSchemaDefaults:
             load(tmp_path, {"exclude_agent_traffic": False})
         assert "exclude_agent_traffic" in str(excinfo.value)
 
-    def test_interface_item_defaults(self, tmp_path: Path):
+    def test_an_interface_entry_carries_only_its_identity(self, tmp_path: Path):
         config = load(tmp_path, {"interfaces": [{"interface": "eth0"}]})
-        entry = config["interfaces"][0]
-        assert entry["snaplen"] == 512
-        assert entry["promiscuous"] is False
-        assert entry["buffer_size"] == 8 * 1024 * 1024
+        assert config["interfaces"][0] == {"interface": "eth0"}
 
     def test_replay_pcap_is_optional_and_absent_by_default(self, tmp_path: Path):
         assert not load(tmp_path, {}).get("replay_pcap")
@@ -63,7 +66,7 @@ class TestSchemaDefaults:
 
     def test_snaplen_below_minimum_is_rejected(self, tmp_path: Path):
         with pytest.raises(Exception) as excinfo:
-            load(tmp_path, {"interfaces": [{"interface": "eth0", "snaplen": 8}]})
+            load(tmp_path, {"snaplen": 8})
         assert "snaplen" in str(excinfo.value)
 
 
@@ -73,6 +76,19 @@ class TestParseInterfaces:
         assert cfg.snaplen == DEFAULT_SNAPLEN == 512
         assert cfg.promiscuous is False
         assert cfg.buffer_size == DEFAULT_BUFFER_SIZE == 8 * 1024 * 1024
+
+    def test_global_capture_settings_fan_out_to_every_interface(self):
+        configs = parse_interfaces(
+            {
+                "interfaces": [{"interface": "eth0"}, {"interface": "eth1"}],
+                "snaplen": 1518,
+                "promiscuous": True,
+                "buffer_size": 1 << 20,
+            }
+        )
+        assert [(c.snaplen, c.promiscuous, c.buffer_size) for c in configs] == [
+            (1518, True, 1 << 20)
+        ] * 2
 
     def test_name_defaults_to_interface(self):
         [cfg] = parse_interfaces({"interfaces": [{"interface": "eth0"}]})
