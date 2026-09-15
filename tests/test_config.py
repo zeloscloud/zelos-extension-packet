@@ -34,13 +34,15 @@ def load(tmp_path: Path, raw: dict) -> dict:
 class TestSchemaDefaults:
     def test_empty_config_gets_every_top_level_default(self, tmp_path: Path):
         config = load(tmp_path, {})
-        assert config["log_frames"] is True
-        assert config["log_level"] == "INFO"
         assert config["interfaces"] == []
-        # Capture settings are global, one set for every interface.
-        assert config["snaplen"] == 512
-        assert config["promiscuous"] is False
-        assert config["buffer_size"] == 8 * 1024 * 1024
+        # Everything else lives under Advanced: one set of capture settings for every interface, and the
+        # loader fills the nested defaults even when the object itself was absent.
+        advanced = config["advanced"]
+        assert advanced["log_frames"] is True
+        assert advanced["log_level"] == "INFO"
+        assert advanced["snaplen"] == 512
+        assert advanced["promiscuous"] is False
+        assert advanced["buffer_size"] == 8 * 1024 * 1024
         # `stored_frame_bytes` defaults to null, which the schema default-filler
         # leaves absent; `cli.run_app_mode` reads it with the same fallback.
 
@@ -62,11 +64,11 @@ class TestSchemaDefaults:
     def test_shipped_config_json_validates(self, tmp_path: Path):
         shipped = json.loads((REPO_ROOT / "config.json").read_text())
         config = load(tmp_path, shipped)
-        assert config["log_frames"] is True
+        assert config["advanced"]["log_frames"] is True
 
     def test_snaplen_below_minimum_is_rejected(self, tmp_path: Path):
         with pytest.raises(Exception) as excinfo:
-            load(tmp_path, {"snaplen": 8})
+            load(tmp_path, {"advanced": {"snaplen": 8}})
         assert "snaplen" in str(excinfo.value)
 
 
@@ -81,9 +83,7 @@ class TestParseInterfaces:
         configs = parse_interfaces(
             {
                 "interfaces": [{"interface": "eth0"}, {"interface": "eth1"}],
-                "snaplen": 1518,
-                "promiscuous": True,
-                "buffer_size": 1 << 20,
+                "advanced": {"snaplen": 1518, "promiscuous": True, "buffer_size": 1 << 20},
             }
         )
         assert [(c.snaplen, c.promiscuous, c.buffer_size) for c in configs] == [

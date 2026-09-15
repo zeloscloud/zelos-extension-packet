@@ -141,9 +141,9 @@ def sanitize_capture_name(raw: str) -> str:
 def parse_interfaces(config: dict) -> list[InterfaceConfig]:
     """Turn the `interfaces` array into :class:`InterfaceConfig` values.
 
-    `snaplen`, `promiscuous` and `buffer_size` are top-level settings fanned
-    out to every interface: one byte budget for the whole capture, which is how
-    the CLI's single `--snaplen` has always behaved.
+    `advanced.snaplen`, `advanced.promiscuous` and `advanced.buffer_size` are
+    fanned out to every interface: one byte budget for the whole capture, which
+    is how the CLI's single `--snaplen` has always behaved.
 
     Defaults are applied here as well as in the JSON Schema, so CLI callers -
     which never go through `load_config` - get identical behaviour.
@@ -159,9 +159,10 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
     if not isinstance(entries, list):
         raise ConfigError("'interfaces' must be a list of capture configurations")
 
-    snaplen = int(config.get("snaplen") or DEFAULT_SNAPLEN)
-    promiscuous = bool(config.get("promiscuous", DEFAULT_PROMISCUOUS))
-    buffer_size = int(config.get("buffer_size") or DEFAULT_BUFFER_SIZE)
+    advanced = config.get("advanced") or {}
+    snaplen = int(advanced.get("snaplen") or DEFAULT_SNAPLEN)
+    promiscuous = bool(advanced.get("promiscuous", DEFAULT_PROMISCUOUS))
+    buffer_size = int(advanced.get("buffer_size") or DEFAULT_BUFFER_SIZE)
 
     parsed: list[InterfaceConfig] = []
     seen: dict[str, str] = {}

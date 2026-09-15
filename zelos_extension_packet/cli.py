@@ -40,7 +40,7 @@ SOURCE_PREFIX = ACTION_PREFIX
 
 
 def _apply_log_level(config: dict) -> None:
-    level_name = config.get("log_level", "INFO")
+    level_name = (config.get("advanced") or {}).get("log_level", "INFO")
     level = getattr(logging, str(level_name), None)
     if isinstance(level, int):
         logging.getLogger().setLevel(level)
@@ -151,11 +151,12 @@ def run_app_mode(file: Path | None = None) -> None:
     config = load_config()
     _apply_log_level(config)
 
-    log_frames = bool(config.get("log_frames", True))
+    advanced = config.get("advanced") or {}
+    log_frames = bool(advanced.get("log_frames", True))
     # `.get` with a default, not `or`: an explicit null means "store every
     # captured byte" and must survive, where `or` would fold it back to 256.
-    stored_frame_bytes = config.get("stored_frame_bytes", DEFAULT_STORED_FRAME_BYTES)
-    replay = str(config.get("replay_pcap") or "").strip()
+    stored_frame_bytes = advanced.get("stored_frame_bytes", DEFAULT_STORED_FRAME_BYTES)
+    replay = str(advanced.get("replay_pcap") or "").strip()
 
     interfaces: list[InterfaceConfig] = []
     if not replay:
@@ -308,15 +309,17 @@ def capture_cmd(
     """
     # Through `parse_interfaces` so the CLI gets the same duplicate-name
     # check as app mode: `capture eth0.1 eth0:1` sanitizes to one name. The
-    # flags are top-level, which is what "one --snaplen for every interface"
-    # already meant.
+    # flags are the app's Advanced settings, which is what "one --snaplen for
+    # every interface" already meant.
     try:
         configs = parse_interfaces(
             {
                 "interfaces": [{"interface": name} for name in interface],
-                "snaplen": snaplen,
-                "promiscuous": promiscuous,
-                "buffer_size": buffer_size,
+                "advanced": {
+                    "snaplen": snaplen,
+                    "promiscuous": promiscuous,
+                    "buffer_size": buffer_size,
+                },
             }
         )
     except ConfigError as exc:

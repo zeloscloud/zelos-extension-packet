@@ -53,13 +53,13 @@ reports which backend a Start would use.
 | --- | --- | --- |
 | `interfaces[].interface` | – | NIC to capture |
 | `interfaces[].name` | interface name | Names this capture's branch in the tree |
-| `snaplen` | `512` | Bytes captured per packet, on every interface; raise for full payloads |
-| `promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
-| `buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
-| `replay_pcap` | – | Decode a file instead of capturing |
-| `log_frames` | `true` | Store raw bytes in the `frame` column |
-| `stored_frame_bytes` | `null` | Bytes stored per packet; `null` stores everything captured |
-| `log_level` | `INFO` | |
+| `advanced.snaplen` | `512` | Bytes captured per packet, on every interface; raise for full payloads |
+| `advanced.promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
+| `advanced.buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
+| `advanced.replay_pcap` | – | Decode a file instead of capturing |
+| `advanced.log_frames` | `true` | Store raw bytes in the `frame` column |
+| `advanced.stored_frame_bytes` | `null` | Bytes stored per packet; `null` stores everything captured |
+| `advanced.log_level` | `INFO` | |
 
 ## Actions
 
