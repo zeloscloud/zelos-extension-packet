@@ -94,6 +94,28 @@ class TestActionsSurface:
         actions.CAPTURES.clear()
         assert actions.capture_stats("nope")["status"] == "error"
 
+    def test_list_interfaces_offers_choices_up_first_with_a_detail(self, monkeypatch):
+        """The app's action-choices contract: the extension ranks and describes,
+        the widget only renders. Up non-loopback first, then loopback, then down."""
+        from zelos_extension_packet import actions, capture
+
+        monkeypatch.setattr(
+            capture,
+            "list_interfaces",
+            lambda: [
+                {"name": "lo0", "is_up": True, "is_loopback": True, "addresses": ["127.0.0.1"]},
+                {"name": "en5", "is_up": False, "is_loopback": False, "addresses": []},
+                {"name": "en0", "is_up": True, "is_loopback": False, "addresses": ["10.0.0.5"]},
+            ],
+        )
+        result = actions.list_interfaces()
+        assert result["status"] == "success"
+        assert result["choices"] == [
+            {"value": "en0", "detail": "up · 10.0.0.5"},
+            {"value": "lo0", "detail": "up · loopback · 127.0.0.1"},
+            {"value": "en5", "detail": "down"},
+        ]
+
     def test_list_interfaces_action_reports_the_missing_package(self, monkeypatch):
         from zelos_extension_packet import actions, pkg
 

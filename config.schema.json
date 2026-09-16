@@ -16,9 +16,12 @@
           "interface": {
             "type": "string",
             "title": "Interface",
-            "description": "Network interface to capture on (eth0, en0, wlan0, lo, ...). Pick a device from the list, or type a name - the list comes from the machine running the agent and appears once the extension has run there at least once.",
-            "ui:widget": "interface-picker",
-            "ui:placeholder": "eth0"
+            "description": "Network interface to capture on (eth0, en0, wlan0, lo, ...). Choose from the machine running the agent, or type a name.",
+            "ui:widget": "action-choices",
+            "ui:placeholder": "eth0",
+            "ui:options": {
+              "action": "Packet/list_interfaces"
+            }
           },
           "name": {
             "type": "string",

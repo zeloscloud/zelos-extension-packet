@@ -33,17 +33,39 @@ def _available_captures(*_args: Any) -> list[str]:
     return sorted(CAPTURES.keys())
 
 
+def _interface_choice(iface: dict[str, Any]) -> dict[str, str]:
+    """One `choices` entry: the name, and what a user needs to pick it."""
+    detail = []
+    if isinstance(iface.get("is_up"), bool):
+        detail.append("up" if iface["is_up"] else "down")
+    if iface.get("is_loopback") is True:
+        detail.append("loopback")
+    addresses = iface.get("addresses") or []
+    if addresses and isinstance(addresses[0], str):
+        detail.append(addresses[0])
+    return {"value": iface["name"], "detail": " · ".join(detail)}
+
+
+def _interface_rank(iface: dict[str, Any]) -> tuple[int, str]:
+    """Up non-loopback first, then up loopback, then down; names break ties."""
+    up = iface.get("is_up") is True
+    loopback = iface.get("is_loopback") is True
+    return (0 if up and not loopback else 1 if up else 2, iface["name"])
+
+
 @action(
     "List Interfaces",
-    "Network interfaces on the machine running the agent. Backs the config's "
-    "'Interface' picker, which also accepts a name typed by hand.",
+    "Network interfaces on the machine running the agent, as choices for the "
+    "config's 'Interface' field, which also accepts a name typed by hand.",
     # Enumerating NICs opens no capture handle and needs no privileges, and the
-    # config picker wants the list before the extension has ever run.
+    # config form wants the list before the extension has ever run.
     standalone=True,
 )
 def list_interfaces() -> dict[str, Any]:
+    """The app's `action-choices` contract: `choices` in the order to show."""
     try:
-        return {"status": "success", "interfaces": capture_mod.list_interfaces()}
+        interfaces = sorted(capture_mod.list_interfaces(), key=_interface_rank)
+        return {"status": "success", "choices": [_interface_choice(i) for i in interfaces]}
     except pkg.PacketPackageUnavailable as exc:
         return {"status": "error", "message": str(exc)}
     except Exception as exc:
