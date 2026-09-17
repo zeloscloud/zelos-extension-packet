@@ -39,6 +39,37 @@ class TestResolveExclusion:
         assert "amplifies" not in warnings
 
 
+class TestTraceLogging:
+    def test_log_records_ride_the_extensions_own_source(self):
+        """`Packet/log` next to the captures, not a `Packet_log` sibling: the handler
+        wraps the global source `init` made, and attaching twice adds nothing."""
+        import logging
+
+        import zelos_sdk
+        from zelos_sdk.hooks.logging import TraceLoggingHandler
+
+        from zelos_extension_packet import cli
+
+        from .conftest import ensure_sdk_init
+
+        ensure_sdk_init()
+        root = logging.getLogger()
+        before = [h for h in root.handlers if isinstance(h, TraceLoggingHandler)]
+        for h in before:
+            root.removeHandler(h)
+        try:
+            cli._attach_trace_logging()
+            cli._attach_trace_logging()
+            attached = [h for h in root.handlers if isinstance(h, TraceLoggingHandler)]
+            assert len(attached) == 1
+            assert attached[0].trace_source is zelos_sdk.get_global_source()
+        finally:
+            for h in [h for h in root.handlers if isinstance(h, TraceLoggingHandler)]:
+                root.removeHandler(h)
+            for h in before:
+                root.addHandler(h)
+
+
 class TestActionsSurface:
     def test_actions_register_under_their_bare_names(self):
         from zelos_sdk.actions import ActionsRegistry

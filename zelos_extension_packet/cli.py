@@ -39,6 +39,20 @@ logger = logging.getLogger(__name__)
 SOURCE_PREFIX = ACTION_PREFIX
 
 
+def _attach_trace_logging() -> None:
+    """Log records ride the extension's own trace source, `Packet/log`, next to
+    the captures rather than as a `Packet_log` sibling. After `init`, so the
+    global source exists; once per process, since commands can nest in tests."""
+    from zelos_sdk.hooks.logging import TraceLoggingHandler
+
+    root = logging.getLogger()
+    if any(isinstance(h, TraceLoggingHandler) for h in root.handlers):
+        return
+    handler = TraceLoggingHandler(zelos_sdk.init_global_source(SOURCE_PREFIX))
+    handler.setLevel(logging.INFO)
+    root.addHandler(handler)
+
+
 def _apply_log_level(config: dict) -> None:
     level_name = (config.get("advanced") or {}).get("log_level", "INFO")
     level = getattr(logging, str(level_name), None)
@@ -176,6 +190,7 @@ def run_app_mode(file: Path | None = None) -> None:
     # Actions are registered before init(); the `Packet/` prefix comes from init().
     packet_actions.register_actions(zelos_sdk.actions_registry)
     zelos_sdk.init(name=SOURCE_PREFIX, log_level="info", actions=True)
+    _attach_trace_logging()
 
     if not pkg.available():
         _fail(pkg.skip_reason())
@@ -327,6 +342,7 @@ def capture_cmd(
 
     packet_actions.register_actions(zelos_sdk.actions_registry)
     zelos_sdk.init(name=SOURCE_PREFIX, log_level="info", actions=True)
+    _attach_trace_logging()
 
     if not pkg.available():
         raise click.ClickException(pkg.skip_reason())
@@ -378,6 +394,7 @@ def capture_cmd(
 def replay_cmd(pcap: Path, name: str, no_frames: bool, file: Path | None) -> None:
     """Decode a PCAP file into a trace. Needs no capture privileges."""
     zelos_sdk.init(name=SOURCE_PREFIX, log_level="info")
+    _attach_trace_logging()
     if not pkg.available():
         raise click.ClickException(pkg.skip_reason())
 
