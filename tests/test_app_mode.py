@@ -136,6 +136,19 @@ class TestActionsSurface:
             "config": {"interfaces": [{"interface": "en0"}, {"interface": "en1"}]},
         }
 
+    def test_auto_config_says_why_when_nothing_qualifies(self, monkeypatch):
+        """An empty config would read as success and fail at Start; the hint says why instead."""
+        from zelos_extension_packet import actions, capture
+
+        monkeypatch.setattr(
+            capture,
+            "list_interfaces",
+            lambda: [{"name": "lo0", "is_up": True, "is_loopback": True, "addresses": []}],
+        )
+        result = actions.auto_config()
+        assert result["status"] == "error"
+        assert "up and not loopback" in result["message"]
+
     def test_list_interfaces_action_reports_the_missing_package(self, monkeypatch):
         from zelos_extension_packet import actions, pkg
 

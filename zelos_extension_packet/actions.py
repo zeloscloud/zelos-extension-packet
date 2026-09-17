@@ -11,6 +11,7 @@ import inspect
 import logging
 import platform
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -53,6 +54,31 @@ def _interface_rank(iface: dict[str, Any]) -> tuple[int, str]:
     return (0 if up and not loopback else 1 if up else 2, iface["name"])
 
 
+def _scan_interfaces(build: Callable[[list[dict[str, Any]]], dict[str, Any]]) -> dict[str, Any]:
+    """Enumerate and rank the host's interfaces, then `build` an answer from them.
+
+    One place says how a scan fails: the packet package missing is the message
+    itself; anything else is logged and named.
+    """
+    try:
+        interfaces = sorted(capture_mod.list_interfaces(), key=_interface_rank)
+        return build(interfaces)
+    except pkg.PacketPackageUnavailable as exc:
+        return {"status": "error", "message": str(exc)}
+    except Exception as exc:
+        logger.exception("Failed to enumerate interfaces")
+        return {"status": "error", "message": f"{type(exc).__name__}: {exc}"}
+
+
+def _auto_config(interfaces: list[dict[str, Any]]) -> dict[str, Any]:
+    picked = [
+        i["name"] for i in interfaces if i.get("is_up") is True and i.get("is_loopback") is not True
+    ]
+    if not picked:
+        return {"status": "error", "message": "No interface on this host is up and not loopback."}
+    return {"status": "success", "config": {"interfaces": [{"interface": n} for n in picked]}}
+
+
 @action(
     "Auto-configure",
     "A configuration that captures on every interface that is up and not loopback, "
@@ -61,19 +87,7 @@ def _interface_rank(iface: dict[str, Any]) -> tuple[int, str]:
 )
 def auto_config() -> dict[str, Any]:
     """The app's auto-configure contract: `config` replaces the form's keys."""
-    try:
-        interfaces = sorted(capture_mod.list_interfaces(), key=_interface_rank)
-        picked = [
-            i["name"]
-            for i in interfaces
-            if i.get("is_up") is True and i.get("is_loopback") is not True
-        ]
-        return {"status": "success", "config": {"interfaces": [{"interface": n} for n in picked]}}
-    except pkg.PacketPackageUnavailable as exc:
-        return {"status": "error", "message": str(exc)}
-    except Exception as exc:
-        logger.exception("Failed to enumerate interfaces")
-        return {"status": "error", "message": f"{type(exc).__name__}: {exc}"}
+    return _scan_interfaces(_auto_config)
 
 
 @action(
@@ -86,14 +100,12 @@ def auto_config() -> dict[str, Any]:
 )
 def list_interfaces() -> dict[str, Any]:
     """The app's `action-choices` contract: `choices` in the order to show."""
-    try:
-        interfaces = sorted(capture_mod.list_interfaces(), key=_interface_rank)
-        return {"status": "success", "choices": [_interface_choice(i) for i in interfaces]}
-    except pkg.PacketPackageUnavailable as exc:
-        return {"status": "error", "message": str(exc)}
-    except Exception as exc:
-        logger.exception("Failed to enumerate interfaces")
-        return {"status": "error", "message": f"{type(exc).__name__}: {exc}"}
+    return _scan_interfaces(
+        lambda interfaces: {
+            "status": "success",
+            "choices": [_interface_choice(i) for i in interfaces],
+        }
+    )
 
 
 @action(
