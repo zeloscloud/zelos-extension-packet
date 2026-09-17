@@ -47,6 +47,7 @@ class TestActionsSurface:
 
         registered = actions.register_actions(ActionsRegistry())
         assert set(registered) == {
+            "auto_config",
             "list_interfaces",
             "capture_stats",
             "check_permissions",
@@ -115,6 +116,25 @@ class TestActionsSurface:
             {"value": "lo0", "detail": "up · loopback · 127.0.0.1"},
             {"value": "en5", "detail": "down"},
         ]
+
+    def test_auto_config_picks_every_up_non_loopback_interface(self, monkeypatch):
+        """The app's auto-configure contract: a config the form takes as is."""
+        from zelos_extension_packet import actions, capture
+
+        monkeypatch.setattr(
+            capture,
+            "list_interfaces",
+            lambda: [
+                {"name": "lo0", "is_up": True, "is_loopback": True, "addresses": ["127.0.0.1"]},
+                {"name": "en5", "is_up": False, "is_loopback": False, "addresses": []},
+                {"name": "en1", "is_up": True, "is_loopback": False, "addresses": []},
+                {"name": "en0", "is_up": True, "is_loopback": False, "addresses": ["10.0.0.5"]},
+            ],
+        )
+        assert actions.auto_config() == {
+            "status": "success",
+            "config": {"interfaces": [{"interface": "en0"}, {"interface": "en1"}]},
+        }
 
     def test_list_interfaces_action_reports_the_missing_package(self, monkeypatch):
         from zelos_extension_packet import actions, pkg

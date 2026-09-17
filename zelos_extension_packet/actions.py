@@ -54,6 +54,29 @@ def _interface_rank(iface: dict[str, Any]) -> tuple[int, str]:
 
 
 @action(
+    "Auto-configure",
+    "A configuration that captures on every interface that is up and not loopback, "
+    "for the config form's Auto-configure button. Review it, then save and start.",
+    standalone=True,
+)
+def auto_config() -> dict[str, Any]:
+    """The app's auto-configure contract: `config` replaces the form's keys."""
+    try:
+        interfaces = sorted(capture_mod.list_interfaces(), key=_interface_rank)
+        picked = [
+            i["name"]
+            for i in interfaces
+            if i.get("is_up") is True and i.get("is_loopback") is not True
+        ]
+        return {"status": "success", "config": {"interfaces": [{"interface": n} for n in picked]}}
+    except pkg.PacketPackageUnavailable as exc:
+        return {"status": "error", "message": str(exc)}
+    except Exception as exc:
+        logger.exception("Failed to enumerate interfaces")
+        return {"status": "error", "message": f"{type(exc).__name__}: {exc}"}
+
+
+@action(
     "List Interfaces",
     "Network interfaces on the machine running the agent, as choices for the "
     "config's 'Interface' field, which also accepts a name typed by hand.",

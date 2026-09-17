@@ -4,6 +4,9 @@
   "additionalProperties": false,
   "title": "Packet Configuration",
   "description": "Pick the interfaces to capture, save, then start. Everything else is under Advanced and has defaults that suit most captures. Live capture needs a one-time grant on the machine running the agent; run the Check permissions action first. Decoding a pcap file needs no privileges at all.",
+  "ui:options": {
+    "autoconfig": "Packet/auto_config"
+  },
   "properties": {
     "interfaces": {
       "type": "array",
