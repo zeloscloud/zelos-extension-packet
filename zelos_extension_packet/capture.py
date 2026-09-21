@@ -20,6 +20,7 @@ backends: the helper is given the same source name and event prefix.
 from __future__ import annotations
 
 import logging
+import os
 import platform
 import re
 import subprocess
@@ -312,12 +313,85 @@ def capture_grant_instructions(
             # No bootstrap to name on a platform with no capture path - there
             # the native text says "unsupported", and a sudo command under it
             # would contradict it.
-            parts = [native]
-            if resolved in ("Linux", "Darwin"):
-                parts.append(_this_interpreter_hint(executable))
+            gap = _session_group_gap(resolved)
+            parts = [gap] if gap else []
+            parts.append(native)
+            # Only when the native text has not already named this interpreter.
+            # It fills the command from `sys.executable` now, so on a current
+            # zelos-packet the hint would print the same sudo line twice.
+            hint = _this_interpreter_hint(executable)
+            if resolved in ("Linux", "Darwin") and _command_of(hint) not in native:
+                parts.append(hint)
+            # The gap message, when present, says this and more precisely.
+            if resolved in ("Linux", "Darwin") and not gap:
+                parts.append(_SESSION_STEP)
             parts.append(_REPLAY_HINT)
             return "\n\n".join(parts)
     return builtin_grant_instructions(system=system, executable=executable)
+
+
+#: The Linux group `zelos_packet install-helper` puts the helper in. Mirrors
+#: `LINUX_GROUP` in zelos_packet's own CLI; a rename there is a grant change
+#: that needs this side updated too.
+LINUX_CAPTURE_GROUP = "zelos-packet"
+
+
+def _session_group_gap(system: str | None = None) -> str | None:
+    """Linux: the user is in the capture group but THIS process is not.
+
+    The grant is complete and `install-helper` says so, yet every start still
+    fails: Linux fixes a process's supplementary groups when its login session
+    is created, so a session that predates the `usermod -aG` never sees the new
+    group, and neither does anything it launches. Restarting the app inside
+    that session changes nothing, which is the trap. Detecting it turns a
+    generic "run the sudo command again" into the one instruction that works.
+    """
+    if (system or platform.system()) != "Linux":
+        return None
+    try:
+        import getpass
+        import grp
+
+        group = grp.getgrnam(LINUX_CAPTURE_GROUP)
+    except (KeyError, ImportError):
+        return None  # No group yet: the bootstrap command really is the answer.
+    if group.gr_gid in os.getgroups():
+        return None  # This process has it; the denial is something else.
+    if getpass.getuser() not in group.gr_mem:
+        return None  # Genuinely not a member: the bootstrap command applies.
+    return (
+        f"You are already in the {LINUX_CAPTURE_GROUP} group, but this process is not.\n"
+        "Linux fixes a process's groups when its login session starts, and this\n"
+        "session started before the grant. The grant itself is fine, and running\n"
+        "it again will not help.\n"
+        "\n"
+        "Closing and reopening Zelos does NOT fix this. Do one of these:\n"
+        "\n"
+        "    1. Log out of your desktop session completely, then log back in.\n"
+        "    2. Or reboot the machine.\n"
+        "\n"
+        "Then start the extension again."
+    )
+
+
+#: The step every grant needs and the native text states only in passing. It
+#: cost a machine reboot to discover, so it gets its own numbered block rather
+#: than a clause: a new group reaches a process only through a NEW login
+#: session, and relaunching the app from the old one changes nothing.
+_SESSION_STEP = """After granting, your current login session still does not have the new group.
+Closing and reopening Zelos is NOT enough:
+
+    1. Log out of your desktop session completely, then log back in
+       (rebooting also works).
+    2. Start the extension again."""
+
+
+def _command_of(hint: str) -> str:
+    """The bare `sudo ... install-helper` line out of a hint block."""
+    for line in hint.splitlines():
+        if line.strip().startswith("sudo "):
+            return line.strip()
+    return hint.strip()
 
 
 def _this_interpreter_hint(executable: str | None = None) -> str:
@@ -333,6 +407,16 @@ def _this_interpreter_hint(executable: str | None = None) -> str:
         "The extension runs under this interpreter, so run exactly:\n\n"
         f"    sudo {executable or sys.executable or 'python3'} -m zelos_packet install-helper"
     )
+
+
+def _diagnosis(exc: BaseException) -> str:
+    """The native error's first paragraph: what went wrong, not how to fix it.
+
+    zelos_packet embeds the whole grant block in the error it raises, and
+    `remediation_text` appends that same block, so carrying both printed the
+    sudo command twice. The remediation is the copy that stays.
+    """
+    return str(exc).split("\n\n", 1)[0].strip()
 
 
 def remediation_text(
@@ -468,7 +552,7 @@ class CaptureSession:
             self._source = None
             if pkg.is_permission_error(exc):
                 raise CaptureDeniedError(
-                    f"Capture on {self.config.interface!r} was denied: {exc}",
+                    f"Capture on {self.config.interface!r} was denied: {_diagnosis(exc)}",
                     remediation_text(self.config.interface),
                 ) from exc
             raise
