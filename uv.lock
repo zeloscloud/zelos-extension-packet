@@ -566,48 +566,35 @@ requires-dist = [
     { name = "rich-click", specifier = ">=1.8.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14.2" },
     { name = "tqdm", marker = "extra == 'cli'", specifier = ">=4.0.0" },
-    { name = "zelos-packet", editable = "../src/.claude/worktrees/zelos-packet/api/py/zelos-packet" },
-    { name = "zelos-sdk", specifier = ">=0.0.10" },
+    { name = "zelos-packet", specifier = "==0.0.1" },
+    { name = "zelos-sdk", specifier = ">=0.0.12a1" },
 ]
 provides-extras = ["cli", "dev"]
 
 [[package]]
 name = "zelos-packet"
 version = "0.0.1"
-source = { editable = "../src/.claude/worktrees/zelos-packet/api/py/zelos-packet" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "zelos-sdk" },
 ]
-
-[package.metadata]
-requires-dist = [{ name = "zelos-sdk", editable = "../src/.claude/worktrees/zelos-packet/api/py/zelos-sdk" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pyarrow" },
-    { name = "pytest", specifier = ">=8.0" },
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bb/81/4623853edb78f0c473c61a2c5812044ad846a7fb58367112f709581232ff/zelos_packet-0.0.1-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:e9cb78c9a81d9bf4e551b9b9c074e3a31c1807503a492331433157ea8c61db15", size = 3859957, upload-time = "2026-09-21T18:26:03.518Z" },
+    { url = "https://files.pythonhosted.org/packages/60/42/712e9c7b678fb25cad9ae21fd9b4ff5019a67a595b469388f42b16350057/zelos_packet-0.0.1-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:47797e8e45afea2b9995c3cbb6c17430e7ed0898b9567ebcb4b6315126f65a5c", size = 4406879, upload-time = "2026-09-21T18:26:05.495Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/c9/1fadbefa22acd6affd9c868c14bda2d0c92857f8390d989fb609290237f5/zelos_packet-0.0.1-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:3f7fe3d8991eb91a44599549e577bb63a3b3c7df72a505902e2b9b813b3e94a6", size = 5176224, upload-time = "2026-09-21T18:26:07.065Z" },
 ]
 
 [[package]]
 name = "zelos-sdk"
-version = "0.0.11a0"
-source = { editable = "../src/.claude/worktrees/zelos-packet/api/py/zelos-sdk" }
+version = "0.0.12a1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama" },
     { name = "jsonschema" },
     { name = "pyarrow" },
-    { name = "pytest" },
-    { name = "rich" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "colorama" },
-    { name = "jsonschema", specifier = ">=4.21.1" },
-    { name = "numpy", marker = "extra == 'analysis'", specifier = ">=1.26" },
-    { name = "pandas", marker = "extra == 'analysis'", specifier = ">=2.0" },
-    { name = "pyarrow", specifier = ">=18.0.0" },
-    { name = "pytest", specifier = ">=8.1.0" },
-    { name = "rich" },
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/70/f435f3dc3d2f4e667eb6b8c9c2bc9b6d3c2c4b7ad2882128a7dd72b43849/zelos_sdk-0.0.12a1-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:906c65d9b5fcf75eeae83bae64448a58a5775f4e74907b6132ac338153c3e2a2", size = 33744316, upload-time = "2026-09-21T17:17:53.254Z" },
+    { url = "https://files.pythonhosted.org/packages/54/f7/870c60d18f491571e6ed4f24db271205c56258bc456a364e445afebce89d/zelos_sdk-0.0.12a1-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:23d4649d50cdf21bfa89066463acb85c18f5b74c96ff294832d3812e600a1f15", size = 46046066, upload-time = "2026-09-21T17:17:57.872Z" },
+    { url = "https://files.pythonhosted.org/packages/54/09/29caab738b739775ad7d08dcd78d4eb7b1aa0b170852dc6e8076a9ddcab4/zelos_sdk-0.0.12a1-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:a81cd7edb43e03ee5f23afaaa497b9fa6c5cb11113cd9e263c9723b1f1ac5c58", size = 45485936, upload-time = "2026-09-21T17:18:01.646Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/3d/0a84f47b3e430335ceca746b9c248e346f2f74b49eb0c958225ddf18dba6/zelos_sdk-0.0.12a1-cp310-abi3-win_amd64.whl", hash = "sha256:96bb08b18e7f7075eac3a0e78406b46b41a404a1920f7d6010071443128099e3", size = 36034587, upload-time = "2026-09-21T17:18:04.469Z" },
 ]
-provides-extras = ["analysis"]

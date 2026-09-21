@@ -27,19 +27,11 @@ jobs:
 
       - uses: extractions/setup-just@v3
 
-      # The `*-nolive` recipes, not `ci-install` / `check` / `test`: `zelos-packet`
-      # still resolves through `[tool.uv.sources]` to a monorepo checkout that
-      # exists on one machine and links libpcap, so a full `uv sync` cannot run
-      # here. Everything else installs, and the few tests that need the real
-      # package skip with a reason. Same goes for `uv lock --locked`, which CAN's
-      # CI runs and this one cannot until the source override is gone.
-      #
-      # Flip all three to the plain recipes once zelos-packet publishes.
       - name: Install dependencies
-        run: just install-nolive
+        run: just ci-install
 
       - name: Run linting
-        run: just check-nolive
+        run: just check
 
       - name: Run tests
-        run: just test-nolive
+        run: just test

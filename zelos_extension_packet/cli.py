@@ -19,7 +19,7 @@ from . import actions as packet_actions
 from .agent_filter import AMPLIFICATION_WARNING, AgentEndpoint, is_loopback_interface
 from .agent_filter import resolve_agent_endpoint as _resolve_agent_endpoint
 from .capture import (
-    DEFAULT_FRAME_SNAPLEN,
+    DEFAULT_STORED_FRAME_BYTES,
     CaptureDeniedError,
     CaptureSession,
     ConfigError,
@@ -39,8 +39,22 @@ logger = logging.getLogger(__name__)
 SOURCE_PREFIX = ACTION_PREFIX
 
 
+def _attach_trace_logging() -> None:
+    """Log records ride the extension's own trace source, `Packet/log`, next to
+    the captures rather than as a `Packet_log` sibling. After `init`, so the
+    global source exists; once per process, since commands can nest in tests."""
+    from zelos_sdk.hooks.logging import TraceLoggingHandler
+
+    root = logging.getLogger()
+    if any(isinstance(h, TraceLoggingHandler) for h in root.handlers):
+        return
+    handler = TraceLoggingHandler(zelos_sdk.init_global_source(SOURCE_PREFIX))
+    handler.setLevel(logging.INFO)
+    root.addHandler(handler)
+
+
 def _apply_log_level(config: dict) -> None:
-    level_name = config.get("log_level", "INFO")
+    level_name = (config.get("advanced") or {}).get("log_level", "INFO")
     level = getattr(logging, str(level_name), None)
     if isinstance(level, int):
         logging.getLogger().setLevel(level)
@@ -151,11 +165,12 @@ def run_app_mode(file: Path | None = None) -> None:
     config = load_config()
     _apply_log_level(config)
 
-    log_frames = bool(config.get("log_frames", True))
+    advanced = config.get("advanced") or {}
+    log_frames = bool(advanced.get("log_frames", True))
     # `.get` with a default, not `or`: an explicit null means "store every
     # captured byte" and must survive, where `or` would fold it back to 256.
-    frame_snaplen = config.get("frame_snaplen", DEFAULT_FRAME_SNAPLEN)
-    replay = str(config.get("replay_pcap") or "").strip()
+    stored_frame_bytes = advanced.get("stored_frame_bytes", DEFAULT_STORED_FRAME_BYTES)
+    replay = str(advanced.get("replay_pcap") or "").strip()
 
     interfaces: list[InterfaceConfig] = []
     if not replay:
@@ -172,9 +187,10 @@ def run_app_mode(file: Path | None = None) -> None:
 
     output_file = _resolve_output_file(file)
 
-    # Actions are registered before init(); the `packet/` prefix comes from init().
+    # Actions are registered before init(); the `Packet/` prefix comes from init().
     packet_actions.register_actions(zelos_sdk.actions_registry)
     zelos_sdk.init(name=SOURCE_PREFIX, log_level="info", actions=True)
+    _attach_trace_logging()
 
     if not pkg.available():
         _fail(pkg.skip_reason())
@@ -186,7 +202,7 @@ def run_app_mode(file: Path | None = None) -> None:
             replay_kwargs = {
                 "name": Path(replay).stem,
                 "log_frames": log_frames,
-                "frame_snaplen": frame_snaplen,
+                "stored_frame_bytes": stored_frame_bytes,
             }
             if output_file:
                 with zelos_sdk.TraceWriter(str(output_file)):
@@ -210,7 +226,12 @@ def run_app_mode(file: Path | None = None) -> None:
         # and capturing without it is the amplification loop.
         _fail(str(exc))
     sessions = [
-        CaptureSession(cfg, endpoint=endpoint, log_frames=log_frames, frame_snaplen=frame_snaplen)
+        CaptureSession(
+            cfg,
+            endpoint=endpoint,
+            log_frames=log_frames,
+            stored_frame_bytes=stored_frame_bytes,
+        )
         for cfg in interfaces
     ]
     for session in sessions:
@@ -302,19 +323,18 @@ def capture_cmd(
       zelos-extension-packet capture eth0 eth1 --snaplen 1518 --file
     """
     # Through `parse_interfaces` so the CLI gets the same duplicate-name
-    # check as app mode: `capture eth0.1 eth0:1` sanitizes to one name.
+    # check as app mode: `capture eth0.1 eth0:1` sanitizes to one name. The
+    # flags are the app's Advanced settings, which is what "one --snaplen for
+    # every interface" already meant.
     try:
         configs = parse_interfaces(
             {
-                "interfaces": [
-                    {
-                        "interface": name,
-                        "snaplen": snaplen,
-                        "promiscuous": promiscuous,
-                        "buffer_size": buffer_size,
-                    }
-                    for name in interface
-                ]
+                "interfaces": [{"interface": name} for name in interface],
+                "advanced": {
+                    "snaplen": snaplen,
+                    "promiscuous": promiscuous,
+                    "buffer_size": buffer_size,
+                },
             }
         )
     except ConfigError as exc:
@@ -322,6 +342,7 @@ def capture_cmd(
 
     packet_actions.register_actions(zelos_sdk.actions_registry)
     zelos_sdk.init(name=SOURCE_PREFIX, log_level="info", actions=True)
+    _attach_trace_logging()
 
     if not pkg.available():
         raise click.ClickException(pkg.skip_reason())
@@ -373,6 +394,7 @@ def capture_cmd(
 def replay_cmd(pcap: Path, name: str, no_frames: bool, file: Path | None) -> None:
     """Decode a PCAP file into a trace. Needs no capture privileges."""
     zelos_sdk.init(name=SOURCE_PREFIX, log_level="info")
+    _attach_trace_logging()
     if not pkg.available():
         raise click.ClickException(pkg.skip_reason())
 

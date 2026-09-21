@@ -42,7 +42,7 @@ def test_entry_module_re_exports_the_action_prefix() -> None:
 
     The inventory dump reads `ACTION_PREFIX` off the entry module and otherwise
     falls back to its name, so a missing re-export ships `main/convert_pcap`
-    while the running extension serves `packet/convert_pcap` - two unrelated
+    while the running extension serves `Packet/convert_pcap` - two unrelated
     trees, no error anywhere.
     """
     import main

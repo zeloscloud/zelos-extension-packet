@@ -1,4 +1,4 @@
-"""Free-floating packet actions registered under ``packet/<name>``.
+"""Free-floating packet actions registered under ``Packet/<name>``.
 
 Same shape as the CAN extension: free functions (so ``choices=`` can reference a
 module-level callable), a shared registry populated by ``cli.py`` at startup, and
@@ -11,6 +11,7 @@ import inspect
 import logging
 import platform
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -33,22 +34,78 @@ def _available_captures(*_args: Any) -> list[str]:
     return sorted(CAPTURES.keys())
 
 
-@action(
-    "List Interfaces",
-    "Network interfaces on the machine running the agent. Backs the config's "
-    "'Interface' picker, which also accepts a name typed by hand.",
-    # Enumerating NICs opens no capture handle and needs no privileges, and the
-    # config picker wants the list before the extension has ever run.
-    standalone=True,
-)
-def list_interfaces() -> dict[str, Any]:
+def _interface_choice(iface: dict[str, Any]) -> dict[str, str]:
+    """One `choices` entry: the name, and what a user needs to pick it."""
+    detail = []
+    if isinstance(iface.get("is_up"), bool):
+        detail.append("up" if iface["is_up"] else "down")
+    if iface.get("is_loopback") is True:
+        detail.append("loopback")
+    addresses = iface.get("addresses") or []
+    if addresses and isinstance(addresses[0], str):
+        detail.append(addresses[0])
+    return {"value": iface["name"], "detail": " · ".join(detail)}
+
+
+def _interface_rank(iface: dict[str, Any]) -> tuple[int, str]:
+    """Up non-loopback first, then up loopback, then down; names break ties."""
+    up = iface.get("is_up") is True
+    loopback = iface.get("is_loopback") is True
+    return (0 if up and not loopback else 1 if up else 2, iface["name"])
+
+
+def _scan_interfaces(build: Callable[[list[dict[str, Any]]], dict[str, Any]]) -> dict[str, Any]:
+    """Enumerate and rank the host's interfaces, then `build` an answer from them.
+
+    One place says how a scan fails: the packet package missing is the message
+    itself; anything else is logged and named.
+    """
     try:
-        return {"status": "success", "interfaces": capture_mod.list_interfaces()}
+        interfaces = sorted(capture_mod.list_interfaces(), key=_interface_rank)
+        return build(interfaces)
     except pkg.PacketPackageUnavailable as exc:
         return {"status": "error", "message": str(exc)}
     except Exception as exc:
         logger.exception("Failed to enumerate interfaces")
         return {"status": "error", "message": f"{type(exc).__name__}: {exc}"}
+
+
+def _auto_config(interfaces: list[dict[str, Any]]) -> dict[str, Any]:
+    picked = [
+        i["name"] for i in interfaces if i.get("is_up") is True and i.get("is_loopback") is not True
+    ]
+    if not picked:
+        return {"status": "error", "message": "No interface on this host is up and not loopback."}
+    return {"status": "success", "config": {"interfaces": [{"interface": n} for n in picked]}}
+
+
+@action(
+    "Auto-configure",
+    "A configuration that captures on every interface that is up and not loopback, "
+    "for the config form's Auto-configure button. Review it, then save and start.",
+    standalone=True,
+)
+def auto_config() -> dict[str, Any]:
+    """The app's auto-configure contract: `config` replaces the form's keys."""
+    return _scan_interfaces(_auto_config)
+
+
+@action(
+    "List Interfaces",
+    "Network interfaces on the machine running the agent, as choices for the "
+    "config's 'Interface' field, which also accepts a name typed by hand.",
+    # Enumerating NICs opens no capture handle and needs no privileges, and the
+    # config form wants the list before the extension has ever run.
+    standalone=True,
+)
+def list_interfaces() -> dict[str, Any]:
+    """The app's `action-choices` contract: `choices` in the order to show."""
+    return _scan_interfaces(
+        lambda interfaces: {
+            "status": "success",
+            "choices": [_interface_choice(i) for i in interfaces],
+        }
+    )
 
 
 @action(
@@ -177,8 +234,8 @@ def convert_pcap(
 def register_actions(registry: ActionsRegistry) -> list[str]:
     """Register every ``@action``-decorated free function by its bare name.
 
-    The ``packet/`` prefix consumers see comes from
-    ``zelos_sdk.init(name="packet", actions=True)``.
+    The ``Packet/`` prefix consumers see comes from
+    ``zelos_sdk.init(name="Packet", actions=True)``.
     """
     module = sys.modules[__name__]
     registered: list[str] = []

@@ -69,7 +69,7 @@ just package-dev    # local dry run into dist/, installs nowhere
 `pyproject.toml` and `uv.lock` ship in the archive, so the package would install
 nowhere. Drop the table and re-run `uv lock` once `zelos-packet` publishes.
 
-The archive lands next to `extension.toml` as `packet-capture-{version}.tar.gz`.
+The archive lands next to `extension.toml` as `packet-{version}.tar.gz`.
 
 ## Releasing
 

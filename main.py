@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Zelos Packet Capture extension - live network capture and pcap decode."""
+"""Zelos Packet extension - live network capture and pcap decode."""
 
 import logging
 from pathlib import Path
 
 import rich_click as click
-from zelos_sdk.hooks.logging import TraceLoggingHandler
 
 from zelos_extension_packet import ACTION_PREFIX as _ACTION_PREFIX
 from zelos_extension_packet import cli as cli_commands
@@ -22,12 +21,10 @@ click.rich_click.SHOW_ARGUMENTS = True
 click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 click.rich_click.STYLE_ERRORS_SUGGESTION = "yellow italic"
 
-# INFO level keeps debug chatter out of the backend.
+# INFO level keeps debug chatter out of the backend. Log records reach the
+# trace under the extension's own source (`Packet/log`) once a command has
+# called `zelos_sdk.init`; see `cli._attach_trace_logging`.
 logging.basicConfig(level=logging.INFO)
-
-handler = TraceLoggingHandler("packet_log")
-handler.setLevel(logging.INFO)
-logging.getLogger().addHandler(handler)
 
 
 @click.group(invoke_without_command=True)

@@ -17,11 +17,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    # RELEASE GATE: bump to >=0.0.11 when zelos-sdk 0.0.11 final publishes.
-    # The convert path requires the SDK's evt_flush ABI slot (0.0.11+) and
-    # raises SlotUnavailable on older SDKs; >=0.0.11 is unresolvable today
-    # (PyPI has only 0.0.11a0, excluded as a prerelease).
-    "zelos-sdk>=0.0.10",
+    # The capture path needs the SDK's evt_flush ABI slot, first published in
+    # 0.0.12a1. The prerelease marker has to appear HERE, on a direct
+    # dependency: uv enables prereleases per package only when a direct
+    # requirement names one, so inheriting the same floor through zelos-packet
+    # leaves `uv sync` unsatisfiable in the extension host.
+    "zelos-sdk>=0.0.12a1",
     "rich-click>=1.8.0",
     # Rust-cored capture + decode. Live capture is Linux (AF_PACKET) and macOS
     # (/dev/bpf) only in this release; the decode path is portable, so there is
@@ -53,16 +54,6 @@ dev = [
     "ruff>=0.14.2",
     "jsonschema>=4.0.0",
 ]
-
-[tool.uv.sources]
-# Local development only: resolve `zelos-packet` to the in-tree build rather
-# than a published wheel. Adjust the path if your monorepo checkout differs.
-#
-# uv honours this whenever uv is the resolver - including the extension host -
-# so `scripts/package_extension.py` strips this whole table (comments included)
-# out of the pyproject it archives. Keep the comments inside the table.
-# worktree path until zelos-packet merges to main; then ../src/api/py/zelos-packet
-zelos-packet = { path = "../src/.claude/worktrees/zelos-packet/api/py/zelos-packet", editable = true }
 
 [build-system]
 requires = ["hatchling"]

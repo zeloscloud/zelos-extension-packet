@@ -39,6 +39,37 @@ class TestResolveExclusion:
         assert "amplifies" not in warnings
 
 
+class TestTraceLogging:
+    def test_log_records_ride_the_extensions_own_source(self):
+        """`Packet/log` next to the captures, not a `Packet_log` sibling: the handler
+        wraps the global source `init` made, and attaching twice adds nothing."""
+        import logging
+
+        import zelos_sdk
+        from zelos_sdk.hooks.logging import TraceLoggingHandler
+
+        from zelos_extension_packet import cli
+
+        from .conftest import ensure_sdk_init
+
+        ensure_sdk_init()
+        root = logging.getLogger()
+        before = [h for h in root.handlers if isinstance(h, TraceLoggingHandler)]
+        for h in before:
+            root.removeHandler(h)
+        try:
+            cli._attach_trace_logging()
+            cli._attach_trace_logging()
+            attached = [h for h in root.handlers if isinstance(h, TraceLoggingHandler)]
+            assert len(attached) == 1
+            assert attached[0].trace_source is zelos_sdk.get_global_source()
+        finally:
+            for h in [h for h in root.handlers if isinstance(h, TraceLoggingHandler)]:
+                root.removeHandler(h)
+            for h in before:
+                root.addHandler(h)
+
+
 class TestActionsSurface:
     def test_actions_register_under_their_bare_names(self):
         from zelos_sdk.actions import ActionsRegistry
@@ -47,6 +78,7 @@ class TestActionsSurface:
 
         registered = actions.register_actions(ActionsRegistry())
         assert set(registered) == {
+            "auto_config",
             "list_interfaces",
             "capture_stats",
             "check_permissions",
@@ -93,6 +125,60 @@ class TestActionsSurface:
 
         actions.CAPTURES.clear()
         assert actions.capture_stats("nope")["status"] == "error"
+
+    def test_list_interfaces_offers_choices_up_first_with_a_detail(self, monkeypatch):
+        """The app's action-choices contract: the extension ranks and describes,
+        the widget only renders. Up non-loopback first, then loopback, then down."""
+        from zelos_extension_packet import actions, capture
+
+        monkeypatch.setattr(
+            capture,
+            "list_interfaces",
+            lambda: [
+                {"name": "lo0", "is_up": True, "is_loopback": True, "addresses": ["127.0.0.1"]},
+                {"name": "en5", "is_up": False, "is_loopback": False, "addresses": []},
+                {"name": "en0", "is_up": True, "is_loopback": False, "addresses": ["10.0.0.5"]},
+            ],
+        )
+        result = actions.list_interfaces()
+        assert result["status"] == "success"
+        assert result["choices"] == [
+            {"value": "en0", "detail": "up · 10.0.0.5"},
+            {"value": "lo0", "detail": "up · loopback · 127.0.0.1"},
+            {"value": "en5", "detail": "down"},
+        ]
+
+    def test_auto_config_picks_every_up_non_loopback_interface(self, monkeypatch):
+        """The app's auto-configure contract: a config the form takes as is."""
+        from zelos_extension_packet import actions, capture
+
+        monkeypatch.setattr(
+            capture,
+            "list_interfaces",
+            lambda: [
+                {"name": "lo0", "is_up": True, "is_loopback": True, "addresses": ["127.0.0.1"]},
+                {"name": "en5", "is_up": False, "is_loopback": False, "addresses": []},
+                {"name": "en1", "is_up": True, "is_loopback": False, "addresses": []},
+                {"name": "en0", "is_up": True, "is_loopback": False, "addresses": ["10.0.0.5"]},
+            ],
+        )
+        assert actions.auto_config() == {
+            "status": "success",
+            "config": {"interfaces": [{"interface": "en0"}, {"interface": "en1"}]},
+        }
+
+    def test_auto_config_says_why_when_nothing_qualifies(self, monkeypatch):
+        """An empty config would read as success and fail at Start; the hint says why instead."""
+        from zelos_extension_packet import actions, capture
+
+        monkeypatch.setattr(
+            capture,
+            "list_interfaces",
+            lambda: [{"name": "lo0", "is_up": True, "is_loopback": True, "addresses": []}],
+        )
+        result = actions.auto_config()
+        assert result["status"] == "error"
+        assert "up and not loopback" in result["message"]
 
     def test_list_interfaces_action_reports_the_missing_package(self, monkeypatch):
         from zelos_extension_packet import actions, pkg

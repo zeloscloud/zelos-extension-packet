@@ -1,12 +1,20 @@
 """Per-interface capture lifecycle, config parsing, and permission remediation.
 
 One :class:`CaptureSession` per configured interface, each backed by a
-``zelos_packet.PacketCapture`` whose Rust core owns the emit path. The session
-is the Start/Stop granularity the supervisor drives.
+``zelos_packet.PacketCapture``. The session is the Start/Stop granularity the
+supervisor drives.
 
-Every session writes into ONE trace source, ``packet``, and is told apart by
+``PacketCapture`` runs the capture in the ``zelos-packet-helper`` process on
+both platforms. The helper holds whatever privilege the open needs, drops it
+before it reads a byte on Linux, and streams decoded rows straight to the
+agent over its own SDK connection. Nothing passes through this
+  process, so no source is handed over and the permission verdict arrives at
+  Start rather than at construction.
+
+Every session writes into ONE trace source, ``Packet``, and is told apart by
 its name, which becomes the prefix of its two events - so the tree reads
-``packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields.
+``Packet`` -> ``eth0`` -> ``{packets, stats}`` -> fields. That holds on both
+backends: the helper is given the same source name and event prefix.
 """
 
 from __future__ import annotations
@@ -14,6 +22,7 @@ from __future__ import annotations
 import logging
 import platform
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,7 +32,7 @@ from . import pkg
 
 # `ConfigError` is defined in `agent_filter` (which imports nothing from here)
 # and re-exported, so endpoint resolution can raise it without an import cycle.
-from .agent_filter import AgentEndpoint, ConfigError
+from .agent_filter import AgentEndpoint, ConfigError, agent_url
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +44,12 @@ DEFAULT_PROMISCUOUS = False
 #: the extension already bounds its byte budget with `DEFAULT_SNAPLEN` (512,
 #: chosen to keep the control plane byte-complete), and storing less than we
 #: capture would defeat that rationale.
-DEFAULT_FRAME_SNAPLEN: int | None = None
+DEFAULT_STORED_FRAME_BYTES: int | None = None
 
 #: The one trace source every capture writes into. Sessions are told apart by
-#: their event-name prefix, not by source; see the module docstring.
-PACKET_SOURCE_NAME = "packet"
+#: their event-name prefix, not by source; see the module docstring. Equals
+#: `ACTION_PREFIX`: one user-visible name for actions and catalog paths alike.
+PACKET_SOURCE_NAME = "Packet"
 
 #: Catalog path separators. A VLAN interface is literally named `eth0.100`, so
 #: this is not hypothetical: an unsanitized name breaks `agent.latest` lookups.
@@ -131,6 +141,10 @@ def sanitize_capture_name(raw: str) -> str:
 def parse_interfaces(config: dict) -> list[InterfaceConfig]:
     """Turn the `interfaces` array into :class:`InterfaceConfig` values.
 
+    `advanced.snaplen`, `advanced.promiscuous` and `advanced.buffer_size` are
+    fanned out to every interface: one byte budget for the whole capture, which
+    is how the CLI's single `--snaplen` has always behaved.
+
     Defaults are applied here as well as in the JSON Schema, so CLI callers -
     which never go through `load_config` - get identical behaviour.
 
@@ -144,6 +158,11 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
     entries = config.get("interfaces") or []
     if not isinstance(entries, list):
         raise ConfigError("'interfaces' must be a list of capture configurations")
+
+    advanced = config.get("advanced") or {}
+    snaplen = int(advanced.get("snaplen") or DEFAULT_SNAPLEN)
+    promiscuous = bool(advanced.get("promiscuous", DEFAULT_PROMISCUOUS))
+    buffer_size = int(advanced.get("buffer_size") or DEFAULT_BUFFER_SIZE)
 
     parsed: list[InterfaceConfig] = []
     seen: dict[str, str] = {}
@@ -176,9 +195,9 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
             InterfaceConfig(
                 interface=interface,
                 name=name,
-                snaplen=int(entry.get("snaplen") or DEFAULT_SNAPLEN),
-                promiscuous=bool(entry.get("promiscuous", DEFAULT_PROMISCUOUS)),
-                buffer_size=int(entry.get("buffer_size") or DEFAULT_BUFFER_SIZE),
+                snaplen=snaplen,
+                promiscuous=promiscuous,
+                buffer_size=buffer_size,
             )
         )
 
@@ -207,47 +226,58 @@ def builtin_grant_instructions(
     Pure: no package, no syscalls, so it is testable at the helper seam and is
     available even when `zelos-packet` cannot be imported - which is exactly
     when a user still needs to be told what capture costs here.
+
+    Names `executable` outright rather than an abstract "your python": the
+    grant runs `zelos_packet`, so it must be the interpreter this extension
+    runs under, and a user copy-pasting `python3` under sudo gets the system
+    one, which cannot import the package.
     """
     system = system or platform.system()
     executable = executable or sys.executable or "python3"
 
     if system == "Linux":
         body = f"""
-Live capture needs CAP_NET_RAW (and CAP_NET_ADMIN for promiscuous mode). Grant
-them to the interpreter that runs this extension - one time, no reboot:
+Live capture needs CAP_NET_RAW. Grant it once, per machine:
 
-    sudo setcap cap_net_raw,cap_net_admin+eip {executable}
+    sudo {executable} -m zelos_packet install-helper
 
-Verify with:
+That installs a small privileged helper (cap_net_raw only) and adds you to the
+zelos-packet group. Members of that group can capture traffic on this machine.
+The helper opens the capture socket, drops every capability before it reads a
+byte, and streams decoded packets back - it never hands out the socket, so
+membership does not let anyone send frames.
 
-    getcap {executable}
+Then log out and back in, and restart the agent: a session's groups are fixed
+at login. Check the grant with:
 
-If that path is a symlink (uv-managed venvs usually are), capabilities must go
-on the real file: `setcap ... "$(readlink -f {executable})"`.
-
-Then restart the extension.
+    {executable} -m zelos_packet status
 """
     elif system == "Darwin":
-        # Deliberately the same two options, in the same order, as
-        # zelos-packet's own `permission_remediation()` (rs/capture/error.rs).
-        # These used to disagree: this fallback told the user to create an
-        # access_bpf group, which needs a logout before the membership takes
-        # effect, so following it looked like it had failed. `admin` is a
-        # group a macOS admin user is already in, so it works immediately.
-        body = """
-Live capture reads /dev/bpf*, which is root-only by default on macOS. Pick one:
+        # Same command, same order, as zelos-packet's own
+        # `permission_remediation()` (rs/capture/error.rs) - one grant flow,
+        # not two. The access_bpf group is back, deliberately: it is what
+        # Wireshark's ChmodBPF uses, so the two products' boot daemons agree
+        # on the group instead of last-writer-wins. Its logout requirement is
+        # no longer a trap because the text now states it.
+        #
+        # The SEND caveat is genuinely platform-specific and stays only here:
+        # /dev/bpf* is opened read-write, while the Linux grant gives the
+        # helper a capability it drops and never a socket it hands out.
+        body = f"""
+Live capture reads /dev/bpf*, which is root-only by default on macOS. Grant
+access once, per machine:
 
-  1. Grant your user access (works immediately, resets on reboot):
+    sudo {executable} -m zelos_packet install-helper
 
-         sudo chgrp admin /dev/bpf*
-         sudo chmod g+rw /dev/bpf*
+That installs a boot-time daemon (Wireshark's ChmodBPF shape) putting
+/dev/bpf* in the access_bpf group, and adds you to it. Members of that group
+can also SEND arbitrary frames on this machine, not only capture them: a bpf
+device is opened read-write and capture needs the write side.
 
-  2. Persist it across reboots with Wireshark's ChmodBPF daemon:
+Then log out and back in, and restart the agent: a session's groups are fixed
+at login. Check the grant with:
 
-         sudo /Library/Application\\ Support/Wireshark/ChmodBPF/ChmodBPF
-
-Then restart the extension. Verify with `ls -l /dev/bpf0` — you want
-`crw-rw---- root admin`.
+    {executable} -m zelos_packet status
 """
     else:
         body = f"""
@@ -275,11 +305,34 @@ def capture_grant_instructions(
     Carries no "permission denied" claim, so it can also be handed to a user
     whose Start failed for some other reason (missing package, no NICs).
     """
-    if (system or platform.system()) == platform.system():
+    resolved = system or platform.system()
+    if resolved == platform.system():
         native = pkg.permission_remediation().strip()
         if native:
-            return f"{native}\n\n{_REPLAY_HINT}"
+            # No bootstrap to name on a platform with no capture path - there
+            # the native text says "unsupported", and a sudo command under it
+            # would contradict it.
+            parts = [native]
+            if resolved in ("Linux", "Darwin"):
+                parts.append(_this_interpreter_hint(executable))
+            parts.append(_REPLAY_HINT)
+            return "\n\n".join(parts)
     return builtin_grant_instructions(system=system, executable=executable)
+
+
+def _this_interpreter_hint(executable: str | None = None) -> str:
+    """Pin the native text's bootstrap command to the interpreter that failed.
+
+    The package writes the command as `sudo "$(command -v python3)" ...`, which
+    is right for someone who hit the error in their own venv and wrong here:
+    the agent's extension environment is not on the user's PATH, so pasting it
+    into a terminal grants the *system* python, which cannot import
+    `zelos_packet`. Naming the absolute path is the whole fix.
+    """
+    return (
+        "The extension runs under this interpreter, so run exactly:\n\n"
+        f"    sudo {executable or sys.executable or 'python3'} -m zelos_packet install-helper"
+    )
 
 
 def remediation_text(
@@ -350,7 +403,7 @@ class CaptureSession:
     config: InterfaceConfig
     endpoint: AgentEndpoint | None = None
     log_frames: bool = True
-    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN
+    stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES
     _capture: Any = field(default=None, init=False, repr=False)
     _source: Any = field(default=None, init=False, repr=False)
 
@@ -364,6 +417,12 @@ class CaptureSession:
 
         Keyword names are the native ones (``api/py/zelos-packet/rs/lib.rs``);
         the package is pinned `==`, so there is nothing to negotiate.
+
+        ``agent_url`` is passed explicitly even though the package resolves the
+        same default: it decides where the helper's rows go, and
+        the exclusion literals below were resolved from that same URL. Letting
+        the two be derived independently is how a capture ends up excluding one
+        endpoint and publishing to another.
         """
         return {
             "interface": self.config.interface,
@@ -373,24 +432,32 @@ class CaptureSession:
             "snaplen": self.config.snaplen,
             "promiscuous": self.config.promiscuous,
             "buffer_bytes": self.config.buffer_size,
+            "agent_url": agent_url(),
             "exclude_agent_addrs": list(self.endpoint.literals) if self.endpoint else None,
             "exclude_agent_port": self.endpoint.port if self.endpoint else None,
         }
 
     def start(self) -> None:
-        """Open the capture handle and begin emitting.
+        """Construct the capture and begin emitting.
 
-        `zelos_sdk.init()` must already have run: the source is resolved through
-        the SDK's ABI capsule at construction time. The constructor probe-opens
-        the handle, so a privilege failure surfaces here rather than from a
-        background thread.
+        `zelos_sdk.init()` must already have run: the
+        source is resolved through the SDK's ABI capsule at construction time.
+
+        A privilege failure surfaces synchronously rather than from a
+        background thread: at construction when no runnable helper is
+        installed, or from `start()` when the helper ran and the kernel
+        refused it. Both are caught below and carry the same remediation.
+
+        No source is handed over. There is one capture path now: the rows are
+        produced in the helper's process, behind its own SDK connection, and
+        passing a source here is a hard error precisely so it cannot look like
+        silent data loss.
         """
         try:
-            self._source = make_trace_source()
-            self._capture = pkg.module().PacketCapture(
-                source=self._source,
+            module = pkg.module()
+            self._capture = module.PacketCapture(
                 log_frames=self.log_frames,
-                frame_snaplen=self.frame_snaplen,
+                stored_frame_bytes=self.stored_frame_bytes,
                 **self.capture_kwargs(),
             )
             self._capture.start()
@@ -408,12 +475,13 @@ class CaptureSession:
 
         if not self.log_frames:
             frames = "off"
-        elif self.frame_snaplen is None:
+        elif self.stored_frame_bytes is None:
             frames = "whole frame"
         else:
-            frames = f"first {self.frame_snaplen} B"
+            frames = f"first {self.stored_frame_bytes} B"
         logger.info(
-            "Capturing %s into %s.%s/packets (snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
+            "Capturing %s into %s.%s/packets via the helper "
+            "(snaplen=%d, promiscuous=%s, buffer=%d B, frames=%s)",
             self.config.interface,
             PACKET_SOURCE_NAME,
             self.config.name,
@@ -443,10 +511,15 @@ class CaptureSession:
     def stop(self) -> None:
         """Stop capturing.
 
-        ``PacketCapture.stop()`` joins the reader thread and drains the batch in
-        flight, so returning implies every row is through the sink. The router
-        itself is drained (blocking) by the SDK's atexit hook, which is why the
-        CLI returns normally from `main` rather than calling `os._exit`.
+        ``PacketCapture.stop()`` is bounded at ~3s on both backends. In-process
+        it joins the reader thread and drains the batch in flight, so returning
+        implies every row is through the sink; the router itself is drained
+        (blocking) by the SDK's atexit hook, which is why the CLI returns
+        normally from `main` rather than calling `os._exit`. On the helper
+        backend it signals the process, which drains the kernel buffer, emits
+        its final ``pkt_stats`` row and lets its own router hand everything to
+        the agent inside the same bound, and then reaps it - escalating to
+        SIGKILL rather than waiting past the bound.
         """
         if self._capture is None:
             return
@@ -486,14 +559,14 @@ def make_decoder(
     name: str,
     *,
     log_frames: bool = True,
-    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN,
+    stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
     namespace: Any = None,
     cached: bool = True,
 ) -> Any:
     """A ``PacketDecoder`` emitting into `namespace` under a sanitized `name`.
 
-    Rows land at ``packet.{name}/packets.<field>``: the decoder shares the
-    ``packet`` source with every live capture and is told apart by `name`,
+    Rows land at ``Packet.{name}/packets.<field>``: the decoder shares the
+    ``Packet`` source with every live capture and is told apart by `name`,
     exactly as a capture is.
 
     Shared by replay (global namespace, streaming to an agent) and by
@@ -506,7 +579,7 @@ def make_decoder(
         name=sanitize_capture_name(name),
         source=source,
         log_frames=log_frames,
-        frame_snaplen=frame_snaplen,
+        stored_frame_bytes=stored_frame_bytes,
     )
 
 
@@ -515,7 +588,7 @@ def replay_pcap(
     *,
     name: str = "pcap",
     log_frames: bool = True,
-    frame_snaplen: int | None = DEFAULT_FRAME_SNAPLEN,
+    stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
 ) -> dict[str, Any]:
     """Decode a pcap/pcapng into the *live* trace namespace. No privileges required.
 
@@ -530,7 +603,7 @@ def replay_pcap(
     logger.info(
         "Replaying %s into %s.%s/packets", pcap, PACKET_SOURCE_NAME, sanitize_capture_name(name)
     )
-    decoder = make_decoder(name, log_frames=log_frames, frame_snaplen=frame_snaplen)
+    decoder = make_decoder(name, log_frames=log_frames, stored_frame_bytes=stored_frame_bytes)
     count = decoder.convert_file(str(pcap))
     decoder.flush()
     logger.info("Replay of %s complete: %d packets", pcap.name, count)
@@ -542,6 +615,13 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
 
     Returns a result dict rather than raising, because this is the answer to
     "will Start work?" and callers want the remediation text either way.
+
+    One honest limit, reported in ``backend``. On Linux without CAP_NET_RAW the
+    capture runs in the helper process, and the socket is opened *there* - so
+    what this proves is that a runnable, executable helper is installed, not
+    that the kernel will honor its capability. A stripped xattr or a nosuid
+    mount still fails at Start; ``python -m zelos_packet status`` reports those
+    directly.
     """
     system = platform.system()
     # `capture_supported()` is the package's own compiled-in answer; the
@@ -556,6 +636,7 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
         return {
             "supported": supported,
             "can_capture": False,
+            "backend": "",
             "platform": system,
             "interface": target or "",
             "reason": reason,
@@ -578,37 +659,35 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
             return denied("No network interfaces were reported by zelos-packet")
         target = str(pool[0]["name"])
 
-    # Construct and drop, never start: the constructor probe-opens the handle
-    # (lib.rs `new`), which is the entire question here, while `start()` would
-    # register this interface's two events and leave them in the live catalog
-    # on every permission check.
-    #
-    # The shared source is passed rather than letting the package default one:
-    # defaulting would build a SECOND source named `packet` alongside the one
-    # the sessions use, which nothing rejects and which hides one of the two
-    # from `by_path` resolution. Construction registers no events, so handing
-    # over the real source costs nothing.
+    # The package's own verdict, never a start: `status` answers exactly
+    # "will Start work?" (a runnable helper, the grant, and the kernel
+    # blockers that make a present xattr a lie), and it registers nothing in
+    # the live catalog. A subprocess because that verdict is only reachable
+    # through the CLI; it is the same command the remediation tells a user to
+    # run, so the two can never disagree.
     try:
-        pkg.module().PacketCapture(
-            interface=target, snaplen=64, log_frames=False, source=make_trace_source()
+        proc = subprocess.run(
+            [sys.executable, "-m", "zelos_packet", "status"],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except Exception as exc:
-        if pkg.is_permission_error(exc):
-            # str(exc) embeds the package's own remediation block; keep only
-            # its first line so callers printing reason + remediation don't
-            # show the instructions twice.
-            return denied(
-                f"Capture on {target!r} was denied: {str(exc).splitlines()[0]}",
-                target,
-                remediation=remediation_text(target),
-            )
         return denied(f"{type(exc).__name__}: {exc}", target)
-    else:
-        return {
-            "supported": True,
-            "can_capture": True,
-            "platform": system,
-            "interface": target,
-            "reason": "",
-            "remediation": "",
-        }
+    if proc.returncode != 0:
+        # The verdict line is the last non-empty line `status` prints.
+        lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+        return denied(
+            lines[-1] if lines else "zelos_packet status reported no capture privilege",
+            target,
+            remediation=remediation_text(target),
+        )
+    return {
+        "supported": True,
+        "can_capture": True,
+        "backend": "helper",
+        "platform": system,
+        "interface": target,
+        "reason": "",
+        "remediation": "",
+    }

@@ -88,6 +88,10 @@ class FakeCapture:
 
     instances: list[FakeCapture] = []
 
+    #: Which backend the stand-in reports. `install_fake(backend=...)` sets it,
+    #: because the two paths differ in whether a source is handed over.
+    backend = "in-process"
+
     def __init__(
         self,
         interface,
@@ -95,14 +99,15 @@ class FakeCapture:
         promiscuous=False,
         buffer_bytes=2 * 1024 * 1024,
         immediate=False,
-        source_name="packet",
+        source_name="Packet",
         log_frames=True,
-        frame_snaplen=256,
+        stored_frame_bytes=256,
         stats_interval=1.0,
         exclude_agent_addrs=None,
         exclude_agent_port=None,
         source=None,
         name=None,
+        agent_url=None,
     ):
         self.kwargs = {
             "interface": interface,
@@ -113,11 +118,12 @@ class FakeCapture:
             "source_name": source_name,
             "name": name,
             "log_frames": log_frames,
-            "frame_snaplen": frame_snaplen,
+            "stored_frame_bytes": stored_frame_bytes,
             "stats_interval": stats_interval,
             "exclude_agent_addrs": exclude_agent_addrs,
             "exclude_agent_port": exclude_agent_port,
             "source": source,
+            "agent_url": agent_url,
         }
         self.started = False
         self.stopped = False
@@ -170,10 +176,10 @@ class FakeDecoder:
     def __init__(
         self,
         name="capture",
-        source_name="packet",
+        source_name="Packet",
         iface=None,
         log_frames=True,
-        frame_snaplen=256,
+        stored_frame_bytes=256,
         emit_schemas_on_init=False,
         source=None,
         exclude_agent_addrs=None,
@@ -184,7 +190,7 @@ class FakeDecoder:
             "source_name": source_name,
             "iface": iface,
             "log_frames": log_frames,
-            "frame_snaplen": frame_snaplen,
+            "stored_frame_bytes": stored_frame_bytes,
             "emit_schemas_on_init": emit_schemas_on_init,
             "source": source,
             "exclude_agent_addrs": exclude_agent_addrs,
@@ -233,7 +239,7 @@ class FakeTraceSource:
     """
 
     def __init__(self, namespace=None, *, cached: bool = True) -> None:
-        self.name = "packet"
+        self.name = "Packet"
         self.namespace = namespace
         self.cached = cached
 
@@ -249,7 +255,9 @@ def fake_sanitize_name(raw: str) -> str:
     return cleaned or "capture"
 
 
-def make_fake_module(*, capture_cls=FakeCapture, interfaces=None) -> SimpleNamespace:
+def make_fake_module(
+    *, capture_cls=FakeCapture, interfaces=None, backend="in-process"
+) -> SimpleNamespace:
     ifaces = (
         interfaces
         if interfaces is not None
@@ -281,12 +289,17 @@ def make_fake_module(*, capture_cls=FakeCapture, interfaces=None) -> SimpleNames
         InterfaceNotFoundError=FakeInterfaceNotFoundError,
         list_interfaces=lambda: list(ifaces),
         capture_supported=lambda: True,
+        # Asked before construction so the session knows whether `source=` may
+        # be passed at all; see `CaptureSession.start`.
+        capture_backend=lambda _interface: backend,
         permission_remediation=lambda: FAKE_REMEDIATION,
         sanitize_name=fake_sanitize_name,
     )
 
 
-def install_fake(monkeypatch, *, capture_cls=FakeCapture, interfaces=None) -> SimpleNamespace:
+def install_fake(
+    monkeypatch, *, capture_cls=FakeCapture, interfaces=None, backend="in-process"
+) -> SimpleNamespace:
     """Install a stand-in `zelos_packet` (and trace source) for one test.
 
     `make_trace_source` is stubbed too: constructing a real SDK source would
@@ -296,7 +309,8 @@ def install_fake(monkeypatch, *, capture_cls=FakeCapture, interfaces=None) -> Si
     from zelos_extension_packet import capture as capture_mod
 
     FakeCapture.instances.clear()
-    module = make_fake_module(capture_cls=capture_cls, interfaces=interfaces)
+    capture_cls.backend = backend
+    module = make_fake_module(capture_cls=capture_cls, interfaces=interfaces, backend=backend)
     monkeypatch.setattr(pkg, "module", lambda: module)
     monkeypatch.setattr(pkg, "available", lambda: True)
     monkeypatch.setattr(capture_mod, "make_trace_source", FakeTraceSource)

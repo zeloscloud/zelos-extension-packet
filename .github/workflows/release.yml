@@ -76,7 +76,7 @@ jobs:
         run: just package
 
       # `zelos extensions package` names the archive after the manifest name
-      # slug, so this is `packet-capture-<version>.tar.gz`.
+      # slug, so this is `packet-<version>.tar.gz`.
       - name: Verify package was created
         run: |
           PACKAGE_FILE="*-${{ steps.version.outputs.VERSION }}.tar.gz"

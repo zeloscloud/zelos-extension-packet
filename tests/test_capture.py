@@ -3,8 +3,12 @@ capture handle tells the user."""
 
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
 import pytest
 
+from zelos_extension_packet import capture as capture_mod
 from zelos_extension_packet.agent_filter import AgentEndpoint
 from zelos_extension_packet.capture import (
     METRICS_FIELDS,
@@ -47,6 +51,18 @@ class TestExclusionParameters:
         assert capture.kwargs["exclude_agent_addrs"] == ["127.0.0.1", "::1"]
         assert capture.kwargs["exclude_agent_port"] == 2300
 
+    def test_the_agent_url_matches_the_endpoint_that_was_excluded(self, fake_packet):
+        """One resolution, not two. On the helper backend this decides where
+        the rows go, and the exclusion literals came from the same URL - deriving
+        them independently is how a capture excludes one endpoint and publishes
+        to another."""
+        from zelos_extension_packet.agent_filter import agent_url
+
+        s = session(endpoint=ENDPOINT)
+        s.start()
+        [capture] = FakeCapture.instances
+        assert capture.kwargs["agent_url"] == agent_url()
+
     def test_disabled_exclusion_passes_none(self, fake_packet):
         s = session(endpoint=None)
         s.start()
@@ -73,26 +89,32 @@ class TestExclusionParameters:
         assert capture.kwargs["log_frames"] is False
         assert capture.started
 
-    def test_frame_snaplen_defaults_to_store_everything_captured(self, fake_packet):
+    def test_stored_frame_bytes_defaults_to_store_everything_captured(self, fake_packet):
         """The extension's byte budget is `snaplen` alone: by default every
-        captured byte is stored (`frame_snaplen=None`), so the 512 control-plane
-        rationale holds end-to-end. An explicit cap must survive to the core."""
+        captured byte is stored (`stored_frame_bytes=None`), so the 512
+        control-plane rationale holds end-to-end. The capture limit and the
+        storage limit are separate knobs, and an explicit cap must survive to
+        the core."""
         session(endpoint=ENDPOINT).start()
-        session(endpoint=ENDPOINT, frame_snaplen=128).start()
+        session(endpoint=ENDPOINT, stored_frame_bytes=128).start()
         default, capped = FakeCapture.instances
-        assert (default.kwargs["snaplen"], default.kwargs["frame_snaplen"]) == (512, None)
-        assert capped.kwargs["frame_snaplen"] == 128
+        assert (default.kwargs["snaplen"], default.kwargs["stored_frame_bytes"]) == (512, None)
+        assert capped.kwargs["stored_frame_bytes"] == 128
 
     def test_the_shared_source_and_a_per_capture_name_reach_the_core(self, fake_packet):
-        # Together these make the tree read `packet` -> `eth0` -> `packets`.
-        # The source has to be OUR shared one — letting the package default
-        # would build a second source also named `packet`, which nothing
-        # rejects and which hides one of the two from path resolution.
+        # `name` makes the tree read `Packet` -> `eth0` -> `packets`; the
+        # source is the helper's own, never one passed from here.
         s = session(interface="eth0", name="eth0", endpoint=ENDPOINT)
         s.start()
         [capture] = FakeCapture.instances
-        assert capture.kwargs["source"].name == "packet"
         assert capture.kwargs["name"] == "eth0"
+
+    def test_the_source_name_and_the_action_prefix_agree(self):
+        """One user-visible name: actions at `Packet/list_interfaces`, catalog
+        paths at `Packet.en0/packets`. Two constants, so assert they agree."""
+        from zelos_extension_packet import ACTION_PREFIX
+
+        assert capture_mod.PACKET_SOURCE_NAME == ACTION_PREFIX == "Packet"
 
     def test_stats_use_the_packages_counter_names(self, fake_packet):
         s = session(endpoint=ENDPOINT)
@@ -123,6 +145,19 @@ class TestExclusionParameters:
         s.start()
         s.stop()
         s.stop()
+
+
+class TestBackendSelection:
+    """One capture path: the helper produces rows in its own process, behind
+    its own SDK connection, so a source is never handed over. `PacketCapture`
+    refuses one rather than accept a source no packet would reach."""
+
+    def test_the_capture_is_handed_no_source(self, fake_packet):
+        s = session(endpoint=ENDPOINT)
+        s.start()
+        [capture] = FakeCapture.instances
+        assert capture.kwargs["source"] is None
+        assert capture.started
 
 
 class TestPermissionDenied:
@@ -170,29 +205,62 @@ class TestPermissionDenied:
         with pytest.raises(OSError, match="device is down"):
             session(endpoint=ENDPOINT).start()
 
-    def test_probe_reports_can_capture_when_the_handle_opens(self, fake_packet):
+    def test_probe_reports_can_capture_from_the_packages_own_verdict(
+        self, fake_packet, monkeypatch
+    ):
+        """`status` is the package's answer to "will Start work?"; a zero exit
+        is the whole verdict, and the probe must not start a capture to learn
+        it (that would register the interface's events in the live catalog)."""
+        monkeypatch.setattr(
+            capture_mod.subprocess,
+            "run",
+            lambda *a, **k: SimpleNamespace(returncode=0, stdout="capture is AVAILABLE", stderr=""),
+        )
         result = probe_permissions()
         assert result["can_capture"] is True
+        assert result["backend"] == "helper"
         # First interface that is up and not loopback.
         assert result["interface"] == "en0"
+        assert FakeCapture.instances == []
 
-    def test_probe_returns_remediation_instead_of_raising(self, monkeypatch):
-        class DeniedCapture(FakeCapture):
-            def __init__(self, **kwargs):
-                raise PermissionError(1, "Operation not permitted")
+    def test_probe_reports_the_status_verdict_when_capture_is_refused(
+        self, fake_packet, monkeypatch
+    ):
+        monkeypatch.setattr(
+            capture_mod.subprocess,
+            "run",
+            lambda *a, **k: SimpleNamespace(
+                returncode=1,
+                stdout="wheel helper absent\ncapture is NOT available: run install-helper",
+                stderr="",
+            ),
+        )
+        result = probe_permissions()
+        assert result["can_capture"] is False
+        assert "NOT available" in result["reason"]
+        assert result["remediation"]
 
-        install_fake(monkeypatch, capture_cls=DeniedCapture)
+    def test_probe_returns_remediation_instead_of_raising(self, fake_packet, monkeypatch):
+        """A refusal is an answer, not an exception: callers want the
+        remediation either way, so the probe never raises."""
+        monkeypatch.setattr(
+            capture_mod.subprocess,
+            "run",
+            lambda *a, **k: SimpleNamespace(
+                returncode=1, stdout="capture is NOT available: run install-helper", stderr=""
+            ),
+        )
         result = probe_permissions("en0")
         assert result["can_capture"] is False
         assert FAKE_REMEDIATION in result["remediation"]
         assert "Replay PCAP File" in result["remediation"]
 
-    def test_probe_never_starts_the_capture(self, fake_packet):
-        # start() registers the pkt schemas; a permission probe must not leave a
-        # phantom source in the live catalog.
+    def test_probe_constructs_nothing_at_all(self, fake_packet):
+        """Constructing would default a SECOND source named `Packet` alongside
+        the sessions' shared one, and starting would register the pkt schemas -
+        a permission check must leave neither behind."""
         probe_permissions("en0")
-        [capture] = FakeCapture.instances
-        assert capture.started is False
+        assert FakeCapture.instances == []
 
 
 class TestRemediationText:
@@ -202,26 +270,48 @@ class TestRemediationText:
         text = capture_grant_instructions()
         assert FAKE_REMEDIATION in text
         assert "Replay PCAP File" in text
+        # ...pinned to this interpreter: the package writes the command with
+        # `$(command -v python3)`, which is not the agent's extension env.
+        assert f"sudo {sys.executable} -m zelos_packet install-helper" in text
 
-    def test_linux_names_setcap_with_the_running_interpreter(self):
+    def test_linux_names_the_bootstrap_with_the_running_interpreter(self):
+        """`sudo python3` is the system python, which cannot import the
+        package, so the absolute path is the whole point of the command."""
         text = builtin_grant_instructions(system="Linux", executable="/usr/bin/python3.11")
-        assert "sudo setcap cap_net_raw,cap_net_admin+eip /usr/bin/python3.11" in text
-        assert "getcap /usr/bin/python3.11" in text
+        assert "sudo /usr/bin/python3.11 -m zelos_packet install-helper" in text
+        assert "/usr/bin/python3.11 -m zelos_packet status" in text
+        assert "setcap" not in text, "the interpreter grant is gone"
+        assert "CAP_NET_ADMIN" not in text, "unnecessary for wired capture"
 
-    def test_macos_names_the_bpf_group_grant(self):
-        """The grant must match zelos-packet's own remediation text.
-
-        These two used to disagree — this fallback named an access_bpf group,
-        which needs a logout before the membership applies, so a user who
-        followed it saw it apparently fail. Pinned on `admin` because a macOS
-        admin user is already a member and it takes effect immediately.
-        """
-        text = builtin_grant_instructions(system="Darwin")
+    def test_macos_names_the_same_bootstrap(self):
+        """One grant flow, not two: this must not drift back into a
+        hand-rolled chgrp/chmod recipe that zelos-packet no longer performs."""
+        text = builtin_grant_instructions(system="Darwin", executable="/opt/py/bin/python3")
         assert "/dev/bpf*" in text
-        assert "sudo chgrp admin /dev/bpf*" in text
-        assert "sudo chmod g+rw /dev/bpf*" in text
-        assert "access_bpf" not in text, "must not resurrect the logout-required grant"
+        assert "sudo /opt/py/bin/python3 -m zelos_packet install-helper" in text
+        assert "access_bpf" in text
         assert "ChmodBPF" in text
+
+    def test_both_platforms_disclose_the_relogin(self):
+        """Membership only applies at next login - the single most common
+        support question."""
+        for system in ("Linux", "Darwin"):
+            assert "log out and back in" in builtin_grant_instructions(system=system)
+
+    def test_only_macos_claims_the_group_confers_sending(self):
+        """The two grants are genuinely different and the text must not blur
+        them. macOS opens /dev/bpf read-write in-process, so its group really
+        does confer sending. Linux runs a helper that drops every capability
+        and never hands its socket out, so claiming the same there overstates
+        what enrolling a user costs.
+        """
+        macos = builtin_grant_instructions(system="Darwin")
+        assert "SEND arbitrary frames" in macos
+
+        linux = builtin_grant_instructions(system="Linux")
+        assert "SEND arbitrary frames" not in linux
+        assert "capture traffic on this machine" in linux
+        assert "never hands out the socket" in linux
 
     def test_every_platform_offers_the_zero_privilege_path(self):
         # Including Windows, which has no live capture in this release.
