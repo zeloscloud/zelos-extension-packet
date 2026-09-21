@@ -16,8 +16,6 @@ default:
 # `ld: library not found for -lpcap`. The shell also exports LIBPCAP_LIBDIR,
 # which gets a static link rather than a dynamic one.
 #
-# `install-nolive` below is the escape hatch when you do not need the real
-# package. This whole note goes away once zelos-packet ships as a wheel.
 install:
     uv sync --extra dev
     uv run pre-commit install
@@ -31,7 +29,7 @@ ci-install:
 # built. Every test that needs the real package skips with a clear reason.
 install-nolive:
     uv venv --python 3.11
-    uv pip install pytest jsonschema ruff "zelos-sdk>=0.0.10" "rich-click>=1.8.0"
+    uv pip install pytest jsonschema ruff "zelos-sdk>=0.0.12a1" "rich-click>=1.8.0"
 
 # Format code
 format:
