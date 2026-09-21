@@ -2,7 +2,7 @@
 # See https://docs.zeloscloud.io/sdk/how-to/develop-extensions/ for full documentation
 
 name = "Packet"
-version = "0.0.1"
+version = "0.0.2"
 description = "Live network packet capture and pcap decode for Zelos"
 author = "Zelos"
 repository = "https://github.com/zeloscloud/zelos-extension-packet"
