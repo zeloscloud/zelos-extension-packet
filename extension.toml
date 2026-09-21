@@ -11,7 +11,7 @@ keywords = ["packet", "pcap", "network", "ethernet", "tcpdump", "sniffer"]
 categories = ["Networking", "Industrial", "IoT"]
 
 # File references (relative paths in archive)
-icon = "assets/icon.svg"
+icon = "assets/icon.png"
 readme = "README.md"
 
 # Compatibility floor: 26.0.4 is the first release whose extension host ships the
@@ -36,7 +36,7 @@ python_version = "3.11"
 grace_seconds = 15
 
 # Package boundary for `zelos extensions package`. extension.toml, README.md,
-# config.schema.json, assets/icon.svg, pyproject.toml, uv.lock and the generated
+# config.schema.json, assets/icon.png, pyproject.toml, uv.lock and the generated
 # actions.json are added automatically; everything else has to be named here.
 # `config.json` ships so a fresh install has sane defaults before the app writes
 # its own.
