@@ -43,6 +43,50 @@ def session(**overrides) -> CaptureSession:
     return CaptureSession(cfg, **overrides)
 
 
+class TestSessionGroupGap:
+    """Granted, but the process predates the grant: the trap that cost a reboot."""
+
+    def _group(self, members):
+        return SimpleNamespace(gr_gid=9998, gr_mem=members)
+
+    def test_names_the_logout_when_the_user_has_the_group_and_the_process_does_not(
+        self, monkeypatch
+    ):
+        import grp
+
+        monkeypatch.setattr(capture_mod.platform, "system", lambda: "Linux")
+        monkeypatch.setattr(grp, "getgrnam", lambda _name: self._group(["me"]))
+        monkeypatch.setattr(capture_mod.os, "getgroups", lambda: [1000])
+        monkeypatch.setattr("getpass.getuser", lambda: "me")
+
+        text = capture_mod._session_group_gap()
+        assert text is not None
+        assert "log back in" in text.lower()
+        assert "reboot" in text.lower()
+
+    def test_silent_when_the_process_already_carries_the_group(self, monkeypatch):
+        import grp
+
+        monkeypatch.setattr(capture_mod.platform, "system", lambda: "Linux")
+        monkeypatch.setattr(grp, "getgrnam", lambda _name: self._group(["me"]))
+        monkeypatch.setattr(capture_mod.os, "getgroups", lambda: [1000, 9998])
+        monkeypatch.setattr("getpass.getuser", lambda: "me")
+
+        assert capture_mod._session_group_gap() is None
+
+
+class TestDiagnosis:
+    def test_drops_the_grant_block_the_remediation_already_carries(self):
+        native = (
+            "helper is not executable by this session\n\n"
+            "Live packet capture needs a grant. Run:\n\n    sudo ..."
+        )
+        assert (
+            capture_mod._diagnosis(RuntimeError(native))
+            == "helper is not executable by this session"
+        )
+
+
 class TestExclusionParameters:
     def test_agent_addrs_and_port_reach_packet_capture(self, fake_packet):
         s = session(endpoint=ENDPOINT)
