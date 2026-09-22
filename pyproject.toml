@@ -1,6 +1,6 @@
 [project]
 name = "zelos-extension-packet"
-version = "0.0.2"
+version = "0.0.3"
 description = "Live network packet capture and pcap decode for Zelos"
 authors = [{ name = "zeloscloud", email = "info@zeloscloud.io" }]
 readme = "README.md"
