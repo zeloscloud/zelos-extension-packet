@@ -676,6 +676,9 @@ def replay_pcap(
 ) -> dict[str, Any]:
     """Decode a pcap/pcapng into the *live* trace namespace. No privileges required.
 
+    Paced at the capture's own rate and shifted by one constant offset so the
+    first packet lands at now: spacing is exact, only the epoch moves.
+
     This is the streaming path: rows go wherever `zelos_sdk.init()` pointed them.
     To write a `.trz` and nothing else, use `converter.convert_pcap` - it needs
     no agent and never calls `init()`.
@@ -688,7 +691,7 @@ def replay_pcap(
         "Replaying %s into %s.%s/packets", pcap, PACKET_SOURCE_NAME, sanitize_capture_name(name)
     )
     decoder = make_decoder(name, log_frames=log_frames, stored_frame_bytes=stored_frame_bytes)
-    count = decoder.convert_file(str(pcap))
+    count = decoder.convert_file(str(pcap), realtime=True)
     decoder.flush()
     logger.info("Replay of %s complete: %d packets", pcap.name, count)
     return {"file": str(pcap), "packets": count}

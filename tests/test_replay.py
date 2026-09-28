@@ -54,6 +54,11 @@ class TestReplay:
         replay_pcap(sample_pcap)
         assert decoders[0].flushed
 
+    def test_replay_is_paced_to_now(self, fake_packet, sample_pcap: Path):
+        decoders = spy_on_decoder(fake_packet)
+        replay_pcap(sample_pcap)
+        assert decoders[0].realtime is True
+
     def test_missing_file_is_a_config_error(self, fake_packet, tmp_path: Path):
         with pytest.raises(ConfigError, match="Replay file not found"):
             replay_pcap(tmp_path / "nope.pcap")

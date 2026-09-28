@@ -203,7 +203,8 @@ class FakeDecoder:
         """What the in-file progress poller reads while `convert_file` blocks."""
         return SimpleNamespace(packets_received=self.packets)
 
-    def convert_file(self, path: str) -> int:
+    def convert_file(self, path: str, *, realtime: bool = False) -> int:
+        self.realtime = realtime
         data = Path(path).read_bytes()
         header = struct.unpack("<IHHiIII", data[:24])
         assert header[0] == PCAP_MAGIC, "not a little-endian pcap"
