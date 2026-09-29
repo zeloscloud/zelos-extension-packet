@@ -30,7 +30,7 @@ dependencies = [
     #
     # Pinned `==`: this extension calls the native API directly, with no
     # keyword- or method-alias shims, so the two ship in lockstep.
-    "zelos-packet==0.0.1",
+    "zelos-packet==0.0.2",
 ]
 
 [project.scripts]
