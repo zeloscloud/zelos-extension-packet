@@ -103,9 +103,8 @@ def _install_replay_shutdown() -> None:
 
     Default SIGTERM handling tears the process down without running any
     `finally`, which leaves a half-written .trz behind. Raising instead lets the
-    `TraceWriter` context manager close the file. `convert_file` runs with the
-    GIL released, so the handler only fires once it returns - cancelling
-    mid-file is not on offer, and is not what this protects.
+    `TraceWriter` context manager close the file. A paced `convert_file`
+    checks for signals every 100 ms, so the handler fires mid-file.
     """
 
     def handler(signum: int, _frame: FrameType | None) -> None:

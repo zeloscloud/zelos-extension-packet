@@ -56,7 +56,7 @@ reports which backend a Start would use.
 | `advanced.snaplen` | `512` | Bytes captured per packet, on every interface; raise for full payloads |
 | `advanced.promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
 | `advanced.buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
-| `advanced.replay_pcap` | – | Decode a file instead of capturing |
+| `advanced.replay_pcap` | – | Replay a file instead of capturing (original pace, stamped from now) |
 | `advanced.log_frames` | `true` | Store raw bytes in the `frame` column |
 | `advanced.stored_frame_bytes` | `null` | Bytes stored per packet; `null` stores everything captured |
 | `advanced.log_level` | `INFO` | |
@@ -76,7 +76,7 @@ reports which backend a Start would use.
 uv run zelos-extension-packet interfaces            # list NICs
 uv run zelos-extension-packet check                 # probe permissions
 uv run zelos-extension-packet capture en0 en1       # capture, no app config
-uv run zelos-extension-packet replay capture.pcap   # stream a file to the agent
+uv run zelos-extension-packet replay capture.pcap   # stream a file to the agent, paced, stamped from now
 uv run zelos-extension-packet convert capture.pcap  # write capture.trz, no agent needed
 ```
 
