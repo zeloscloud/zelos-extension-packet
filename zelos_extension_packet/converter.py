@@ -114,21 +114,25 @@ def _track_files(files: list[Path], *, enabled: bool) -> Iterable[Path]:
 # ─── Path resolution ────────────────────────────────────────────────────────
 
 
+def _strip_suffix(name: str, suffixes: tuple[str, ...]) -> str:
+    """`name` without one of `suffixes`, case-insensitive. On the string, not
+    `Path.with_suffix`, which raises on names like `..gz`."""
+    for suffix in suffixes:
+        if name.lower().endswith(suffix) and len(name) > len(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
 def capture_stem(path: Path) -> str:
     """`run1` for run1.pcap, run1.pcapng.gz and run1.zst alike."""
-    if path.suffix.lower() in COMPRESSED_SUFFIXES:
-        path = path.with_suffix("")
-    if path.suffix.lower() in SUPPORTED_FORMATS:
-        path = path.with_suffix("")
-    return path.name
+    return _strip_suffix(_strip_suffix(path.name, COMPRESSED_SUFFIXES), SUPPORTED_FORMATS)
 
 
 def _is_capture_name(path: Path) -> bool:
     """A directory sweep takes .pcap/.pcapng, compressed or not. A bare .gz
     could be anything, so it converts only when named explicitly."""
-    if path.suffix.lower() in COMPRESSED_SUFFIXES:
-        path = path.with_suffix("")
-    return path.suffix.lower() in SUPPORTED_FORMATS
+    inner = _strip_suffix(path.name, COMPRESSED_SUFFIXES)
+    return _strip_suffix(inner, SUPPORTED_FORMATS) != inner
 
 
 def expand_inputs(paths: Iterable[str | Path]) -> list[Path]:
@@ -146,7 +150,7 @@ def expand_inputs(paths: Iterable[str | Path]) -> list[Path]:
         if path.is_dir():
             found = sorted(p for p in path.iterdir() if _is_capture_name(p))
             if not found:
-                raise ConfigError(f"No {' or '.join(SUPPORTED_FORMATS)} files in {path}")
+                raise ConfigError(f"No .pcap or .pcapng files (plain, .gz or .zst) in {path}")
             resolved.extend(found)
         else:
             resolved.append(path)
@@ -160,6 +164,20 @@ def expand_inputs(paths: Iterable[str | Path]) -> list[Path]:
     return unique
 
 
+def output_path(
+    input_file: Path, output: Path | None = None, *, output_dir: Path | None = None
+) -> Path:
+    """Where one input's `.trz` goes. Defaults to the input's capture stem plus
+    `.trz`, so run1.pcap.gz lands at run1.trz."""
+    if output is not None:
+        out = Path(output).expanduser()
+    elif output_dir is not None:
+        out = Path(output_dir).expanduser() / f"{capture_stem(input_file)}.trz"
+    else:
+        out = input_file.with_name(f"{capture_stem(input_file)}.trz")
+    return out if out.suffix.lower() == ".trz" else out.with_suffix(".trz")
+
+
 def resolve_output(
     input_file: Path,
     output: Path | None = None,
@@ -167,8 +185,7 @@ def resolve_output(
     output_dir: Path | None = None,
     overwrite: bool = False,
 ) -> Path:
-    """Where one input's `.trz` goes. Defaults to the input's capture stem plus
-    `.trz`, so run1.pcap.gz lands at run1.trz.
+    """`output_path`, checked against the input and any existing file.
 
     Raises:
         ValueError: the resolved output is the input file.
@@ -176,15 +193,7 @@ def resolve_output(
             this fails one file, not the run - two inputs with the same stem in
             different directories collide here rather than silently clobbering.
     """
-    if output is not None:
-        out = Path(output).expanduser()
-    elif output_dir is not None:
-        out = Path(output_dir).expanduser() / f"{capture_stem(input_file)}.trz"
-    else:
-        out = input_file.with_name(f"{capture_stem(input_file)}.trz")
-
-    if out.suffix.lower() != ".trz":
-        out = out.with_suffix(".trz")
+    out = output_path(input_file, output, output_dir=output_dir)
     if out == input_file:
         raise ValueError(f"Output path is the input file: {out}")
     if out.exists():
@@ -288,9 +297,19 @@ def convert_paths(
         )
 
     results: list[dict[str, Any]] = []
+    # run1.pcap and run1.pcap.gz both default to run1.trz: the second must
+    # fail rather than overwrite the first one's fresh output under --force.
+    claimed: dict[Path, Path] = {}
     with _tqdm_logging():
         for path in _track_files(files, enabled=progress and len(files) > 1):
             try:
+                target = output_path(path, output, output_dir=output_dir)
+                if target in claimed:
+                    raise FileExistsError(
+                        f"{path.name} and {claimed[target].name} both convert to {target}; "
+                        "convert one of them on its own with --output"
+                    )
+                claimed[target] = path
                 destination = resolve_output(
                     path, output, output_dir=output_dir, overwrite=overwrite
                 )

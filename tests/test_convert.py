@@ -75,6 +75,19 @@ class TestBatch:
         assert results[1]["status"] == "success"
         assert (tmp_path / "good.trz").exists()
 
+    def test_a_raw_and_compressed_copy_do_not_overwrite_each_other(
+        self, fake_packet, tmp_path: Path
+    ):
+        from .conftest import _udp_packet
+
+        raw = write_pcap(tmp_path / "run1.pcap", [_udp_packet("10.0.0.1", "10.0.0.2", 1, 2, b"a")])
+        (tmp_path / "run1.pcap.gz").write_bytes(gzip.compress(raw.read_bytes()))
+
+        results = convert_paths([tmp_path], overwrite=True)
+
+        assert [r["status"] for r in results] == ["success", "error"]
+        assert "both convert to" in results[1]["message"]
+
     def test_directory_input_expands_to_its_captures(self, fake_packet, tmp_path: Path):
         from .conftest import _udp_packet
 
@@ -130,7 +143,9 @@ class TestRealPackage:
         packed = tmp_path / "sample.pcap.gz"
         packed.write_bytes(gzip.compress(sample_pcap.read_bytes()))
 
-        assert convert_paths([packed])[0]["packets"] == 3
+        result = convert_paths([packed])[0]
+        assert result["status"] == "success", result
+        assert result["packets"] == 3
         assert (tmp_path / "sample.trz").exists()
 
     @needs_real_packet
