@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,10 @@ class TestOutputPath:
     def test_defaults_to_the_input_with_a_trz_suffix(self):
         assert resolve_output(Path("/caps/run1.pcap")) == Path("/caps/run1.trz")
         assert resolve_output(Path("/caps/run1.pcapng")) == Path("/caps/run1.trz")
+
+    def test_compression_and_capture_suffixes_are_both_dropped(self):
+        assert resolve_output(Path("/caps/run1.pcapng.gz")) == Path("/caps/run1.trz")
+        assert resolve_output(Path("/caps/run1.zst"), output_dir=Path("/t")) == Path("/t/run1.trz")
 
     def test_output_dir_keeps_the_input_stem(self):
         out = resolve_output(Path("/caps/run1.pcap"), output_dir=Path("/traces"))
@@ -119,3 +124,24 @@ class TestRealPackage:
             convert_pcap(corrupt, tmp_path / "corrupt.trz")
 
         assert not (tmp_path / "corrupt.trz").exists()
+
+    @needs_real_packet
+    def test_gzip_input_converts_like_the_raw_capture(self, sample_pcap: Path, tmp_path: Path):
+        packed = tmp_path / "sample.pcap.gz"
+        packed.write_bytes(gzip.compress(sample_pcap.read_bytes()))
+
+        assert convert_paths([packed])[0]["packets"] == 3
+        assert (tmp_path / "sample.trz").exists()
+
+    @needs_real_packet
+    def test_a_truncated_gzip_fails_rather_than_converting_short(
+        self, sample_pcap: Path, tmp_path: Path
+    ):
+        packed = gzip.compress(sample_pcap.read_bytes())
+        cut = tmp_path / "cut.pcap.gz"
+        cut.write_bytes(packed[: len(packed) - 12])
+
+        with pytest.raises(RuntimeError, match="gzip"):
+            convert_pcap(cut, tmp_path / "cut.trz")
+
+        assert not (tmp_path / "cut.trz").exists()
