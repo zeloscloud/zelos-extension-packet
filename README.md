@@ -6,7 +6,7 @@ Live network capture and pcap decode, in your Zelos workspace.
 - 🔍 **Every packet as a row** — addresses, ports, protocol, flags, and the raw bytes
 - 🧭 **Drag into a packet panel** — Wireshark-style list, filter as you type
 - 📈 **Plot the capture itself** — packet and byte rates, kernel drops
-- 📁 **Open a pcap** — decode `.pcap`/`.pcapng` with no privileges and no NIC
+- 📁 **Open a pcap** — decode `.pcap`/`.pcapng`, plain or gzip/zstd compressed, with no privileges and no NIC
 - ⏱️ **One timeline** — packets line up with your CAN and sensor data
 
 ## Granting capture rights
@@ -14,7 +14,7 @@ Live network capture and pcap decode, in your Zelos workspace.
 Capturing reads raw frames, which needs one grant per machine. Decoding a file does not.
 
 ```bash
-uv run zelos-extension-packet check     # when denied, prints the exact command for this machine
+uv run zelos-extension-packet check        # when denied, prints the exact command for this machine
 sudo /path/to/python -m zelos_packet install-helper
 ```
 
@@ -73,11 +73,11 @@ reports which backend a Start would use.
 ## CLI
 
 ```bash
-uv run zelos-extension-packet interfaces            # list NICs
-uv run zelos-extension-packet check                 # probe permissions
-uv run zelos-extension-packet capture en0 en1       # capture, no app config
-uv run zelos-extension-packet replay capture.pcap   # stream a file to the agent, paced, stamped from now
-uv run zelos-extension-packet convert capture.pcap  # write capture.trz, no agent needed
+uv run zelos-extension-packet interfaces               # list NICs
+uv run zelos-extension-packet check                    # probe permissions
+uv run zelos-extension-packet capture en0 en1          # capture, no app config
+uv run zelos-extension-packet replay capture.pcap      # stream a file to the agent, paced, stamped from now
+uv run zelos-extension-packet convert capture.pcap.gz  # write capture.trz, no agent needed (.gz/.zst read directly)
 ```
 
 ## Links
