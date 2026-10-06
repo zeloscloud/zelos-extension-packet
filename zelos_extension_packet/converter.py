@@ -22,6 +22,8 @@ from .capture import ConfigError, make_decoder
 logger = logging.getLogger(__name__)
 
 SUPPORTED_FORMATS = (".pcap", ".pcapng")
+#: Decoded by zelos-packet, which decides by magic bytes, not by name.
+COMPRESSED_SUFFIXES = (".gz", ".zst")
 
 #: How often the in-file bar samples the decoder. Cheap (a counter read), but
 #: not free (a GIL acquire per sample), so it is not a tight loop.
@@ -112,10 +114,32 @@ def _track_files(files: list[Path], *, enabled: bool) -> Iterable[Path]:
 # ─── Path resolution ────────────────────────────────────────────────────────
 
 
+def _strip_suffix(name: str, suffixes: tuple[str, ...]) -> str:
+    """`name` without one of `suffixes`, case-insensitive. On the string, not
+    `Path.with_suffix`, which raises on names like `..gz`."""
+    for suffix in suffixes:
+        if name.lower().endswith(suffix) and len(name) > len(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
+def capture_stem(path: Path) -> str:
+    """`run1` for run1.pcap, run1.pcapng.gz and run1.zst alike."""
+    return _strip_suffix(_strip_suffix(path.name, COMPRESSED_SUFFIXES), SUPPORTED_FORMATS)
+
+
+def _is_capture_name(path: Path) -> bool:
+    """A directory sweep takes .pcap/.pcapng, compressed or not. A bare .gz
+    could be anything, so it converts only when named explicitly."""
+    inner = _strip_suffix(path.name, COMPRESSED_SUFFIXES)
+    return _strip_suffix(inner, SUPPORTED_FORMATS) != inner
+
+
 def expand_inputs(paths: Iterable[str | Path]) -> list[Path]:
     """Resolve CLI/action inputs to a list of capture files.
 
-    A directory expands to the `.pcap`/`.pcapng` files directly inside it (not
+    A directory expands to the `.pcap`/`.pcapng` files directly inside it, plain
+    or `.gz`/`.zst` compressed (not
     recursive - a recursive sweep of a home directory is not what anyone means
     by `convert ~`). Globs are already expanded by the shell. Duplicates are
     dropped so `convert *.pcap dump.pcap` does not write one output twice.
@@ -124,9 +148,9 @@ def expand_inputs(paths: Iterable[str | Path]) -> list[Path]:
     for raw in paths:
         path = Path(raw).expanduser()
         if path.is_dir():
-            found = sorted(p for p in path.iterdir() if p.suffix.lower() in SUPPORTED_FORMATS)
+            found = sorted(p for p in path.iterdir() if _is_capture_name(p))
             if not found:
-                raise ConfigError(f"No {' or '.join(SUPPORTED_FORMATS)} files in {path}")
+                raise ConfigError(f"No .pcap or .pcapng files (plain, .gz or .zst) in {path}")
             resolved.extend(found)
         else:
             resolved.append(path)
@@ -140,6 +164,20 @@ def expand_inputs(paths: Iterable[str | Path]) -> list[Path]:
     return unique
 
 
+def output_path(
+    input_file: Path, output: Path | None = None, *, output_dir: Path | None = None
+) -> Path:
+    """Where one input's `.trz` goes. Defaults to the input's capture stem plus
+    `.trz`, so run1.pcap.gz lands at run1.trz."""
+    if output is not None:
+        out = Path(output).expanduser()
+    elif output_dir is not None:
+        out = Path(output_dir).expanduser() / f"{capture_stem(input_file)}.trz"
+    else:
+        out = input_file.with_name(f"{capture_stem(input_file)}.trz")
+    return out if out.suffix.lower() == ".trz" else out.with_suffix(".trz")
+
+
 def resolve_output(
     input_file: Path,
     output: Path | None = None,
@@ -147,7 +185,7 @@ def resolve_output(
     output_dir: Path | None = None,
     overwrite: bool = False,
 ) -> Path:
-    """Where one input's `.trz` goes. Defaults to the input with a `.trz` suffix.
+    """`output_path`, checked against the input and any existing file.
 
     Raises:
         ValueError: the resolved output is the input file.
@@ -155,15 +193,7 @@ def resolve_output(
             this fails one file, not the run - two inputs with the same stem in
             different directories collide here rather than silently clobbering.
     """
-    if output is not None:
-        out = Path(output).expanduser()
-    elif output_dir is not None:
-        out = Path(output_dir).expanduser() / input_file.name
-    else:
-        out = input_file
-
-    if out.suffix.lower() != ".trz":
-        out = out.with_suffix(".trz")
+    out = output_path(input_file, output, output_dir=output_dir)
     if out == input_file:
         raise ValueError(f"Output path is the input file: {out}")
     if out.exists():
@@ -183,11 +213,14 @@ def convert_pcap(
     log_frames: bool = True,
     progress: bool = False,
 ) -> dict[str, Any]:
-    """Convert one pcap/pcapng to `output_file`. No agent, no `zelos_sdk.init()`.
+    """Convert one pcap/pcapng, optionally gzip or zstd compressed, to
+    `output_file`. No agent, no `zelos_sdk.init()`.
+
+    The format is decided by the file's magic bytes, not its name, so a
+    misnamed capture still converts and a non-capture fails in the decoder.
 
     Raises:
         FileNotFoundError: the input does not exist.
-        ValueError: the input is not a `.pcap`/`.pcapng`.
     """
     import zelos_sdk
 
@@ -195,10 +228,6 @@ def convert_pcap(
     destination = Path(output_file).expanduser()
     if not source.is_file():
         raise FileNotFoundError(f"Input file not found: {source}")
-    if source.suffix.lower() not in SUPPORTED_FORMATS:
-        raise ValueError(
-            f"Unsupported format {source.suffix!r}. Supported: {', '.join(SUPPORTED_FORMATS)}"
-        )
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info("Converting %s -> %s", source, destination)
@@ -210,7 +239,7 @@ def convert_pcap(
             # `cached=False`: nothing reads a last value out of a file
             # conversion, and only a plain TraceSource takes the batch emit.
             decoder = make_decoder(
-                source.stem, log_frames=log_frames, namespace=namespace, cached=False
+                capture_stem(source), log_frames=log_frames, namespace=namespace, cached=False
             )
             with _packet_progress(decoder, source, enabled=progress):
                 packets = decoder.convert_file(str(source))
@@ -268,9 +297,19 @@ def convert_paths(
         )
 
     results: list[dict[str, Any]] = []
+    # run1.pcap and run1.pcap.gz both default to run1.trz: the second must
+    # fail rather than overwrite the first one's fresh output under --force.
+    claimed: dict[Path, Path] = {}
     with _tqdm_logging():
         for path in _track_files(files, enabled=progress and len(files) > 1):
             try:
+                target = output_path(path, output, output_dir=output_dir)
+                if target in claimed:
+                    raise FileExistsError(
+                        f"{path.name} and {claimed[target].name} both convert to {target}; "
+                        "convert one of them on its own with --output"
+                    )
+                claimed[target] = path
                 destination = resolve_output(
                     path, output, output_dir=output_dir, overwrite=overwrite
                 )
