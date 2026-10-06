@@ -33,7 +33,7 @@ from .capture import (
 from .capture import (
     list_interfaces as _list_interfaces,
 )
-from .converter import convert_paths
+from .converter import capture_stem, convert_paths
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +205,7 @@ def run_app_mode(file: Path | None = None) -> None:
         _install_replay_shutdown()
         try:
             replay_kwargs = {
-                "name": Path(replay).stem,
+                "name": capture_stem(Path(replay)),
                 "log_frames": log_frames,
                 "stored_frame_bytes": stored_frame_bytes,
                 "autoeth": autoeth,
@@ -474,7 +474,7 @@ def replay_cmd(
         raise click.ClickException(pkg.skip_reason())
 
     output_file = _resolve_output_file(file)
-    capture_name = name or pcap.stem
+    capture_name = name or capture_stem(pcap)
     _install_replay_shutdown()
     try:
         if output_file:
@@ -523,7 +523,8 @@ def convert_cmd(
 
     Needs no capture privileges and no agent - nothing is published, the trace
     is written straight to disk. One input file produces one .trz; a directory
-    converts every .pcap/.pcapng directly inside it. A failure on one file does
+    converts every .pcap/.pcapng directly inside it. Inputs may be gzip or zstd
+    compressed (.pcap.gz, .pcapng.zst). A failure on one file does
     not stop the rest, and the command exits non-zero if any failed.
 
     Examples:
