@@ -87,7 +87,7 @@ def parse_agent_url(url: str | None = None) -> tuple[str, int]:
     try:
         port = parts.port or DEFAULT_AGENT_PORT
     except ValueError:
-        logger.warning("Agent URL %r has an unparseable port; using %d", raw, DEFAULT_AGENT_PORT)
+        logger.warning("Agent URL %r has an unparsable port; using %d", raw, DEFAULT_AGENT_PORT)
         port = DEFAULT_AGENT_PORT
     return host, port
 
