@@ -2,7 +2,7 @@
 # See https://docs.zeloscloud.io/sdk/how-to/develop-extensions/ for full documentation
 
 name = "Packet"
-version = "0.0.3"
+version = "0.1.0"
 description = "Live network packet capture and pcap decode for Zelos"
 author = "Zelos"
 repository = "https://github.com/zeloscloud/zelos-extension-packet"
@@ -14,33 +14,57 @@ categories = ["Networking", "Industrial", "IoT"]
 icon = "assets/icon.png"
 readme = "README.md"
 
-# Compatibility floor: 26.0.8 is the first release whose RJSF form drops a
-# `ui:widget` it does not register instead of throwing. This config names
-# `action-choices`, which 26.0.7 and older resolve to an unregistered widget and
-# crash the whole config dialog on, so they must not install this extension.
+# Compatibility floor: 26.0.10 is the first release that renders an extension's own [[app.panels]].
+# It also clears the older floor this config needs: 26.0.8 is the first release whose RJSF form drops
+# a `ui:widget` it does not register instead of throwing, and this config names `action-choices`.
 [zelos]
-version = ">=26.0.8"
+version = ">=26.0.10"
 
-# Configuration schema (enables UI in Zelos App)
+# Configuration schema (enables UI in Zelos App); it configures the agent.
 [config]
 schema = "config.schema.json"
 
-# Runtime configuration
-[runtime]
-type = "python"
+# The capture agent.
+[agent]
+runtime = "python"
 entry = "main.py"
 python_version = "3.11"
+# Where zelos-packet 0.0.2 publishes wheels, so where live capture and pcap replay run. The Packet List
+# panel works on every platform: it reads recorded traces through Zelos, not through this agent.
+targets = ["linux-x86_64", "linux-aarch64", "darwin-arm64"]
 
 # Stopping tears down every capture handle and lets the SDK's atexit hook drain
 # the trace pipeline; 15s leaves room for a busy interface's final flush before
 # the supervisor escalates to SIGKILL.
-[stop]
+[agent.stop]
 grace_seconds = 15
+
+# The Packet List panel. A capture's `packets` event routes a drop here, and its
+# `stats` event rides along to feed the status strip. `web/` builds it into dist/.
+[[app.panels]]
+id = "packet-list"
+name = "Packet List"
+description = "Captured network packets"
+icon = "assets/packet-list.svg"
+entry = "dist/panels/packet-list.html"
+accepts = ["zelos.packet."]
+affiliates = ["zelos.packet.stats."]
+binds = "accepted"
+default_height = 2
+live_only = false
+options_schema = "dist/panels/packet-list.options.json"
+ai_guidance = "Captured network traffic: a packet list with source, destination, protocol and length."
+# The host's export menu: the fields the list shows by default, Interface forced on (an export has no
+# column layout to tell captures apart by), plus the fields its rows need. Never `frame`, which is up to
+# a snaplen of bytes per packet. Capped at 100k rows: a packet row is far wider than the export's
+# per-value estimate, and an uncapped chunk would overrun the response limit.
+export = { fields = ["frame_no", "src_ip", "src_port", "dst_ip", "dst_port", "proto", "orig_len", "info", "iface", "cap_len", "truncated", "ip_proto"], max_rows = 100000 }
 
 # Package boundary for `zelos extensions package`. extension.toml, README.md,
 # config.schema.json, assets/icon.png, pyproject.toml, uv.lock and the generated
 # actions.json are added automatically; everything else has to be named here.
 # `config.json` ships so a fresh install has sane defaults before the app writes
-# its own.
+# its own. `dist` is the built panel (`just web-build`) and `assets` holds the
+# panel's icon.
 [package]
-paths = ["main.py", "zelos_extension_packet", "config.json"]
+paths = ["main.py", "zelos_extension_packet", "config.json", "dist", "assets"]

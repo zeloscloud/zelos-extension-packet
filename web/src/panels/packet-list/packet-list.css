@@ -1,0 +1,360 @@
+/* ── Panel frame ─────────────────────────────────────────────────────────────────────────────── */
+
+.grid-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  outline: none;
+}
+
+.grid-panel-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.grid-host {
+  height: 100%;
+  width: 100%;
+}
+
+.panel-state {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.panel-state-icon,
+.panel-state .line-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.panel-state.error {
+  color: hsl(var(--destructive));
+}
+
+/* The app's input: 40 px tall, 14 px text, a 2 px focus ring offset from the border. */
+.text-input {
+  display: block;
+  width: 100%;
+  height: 40px;
+  padding: 8px 12px;
+  border: 1px solid hsl(var(--input));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font: inherit;
+}
+
+.text-input::placeholder,
+.search-box input::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+.text-input:focus-visible,
+.search-box:focus-within {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.text-input[aria-invalid="true"] {
+  border-color: hsl(var(--destructive));
+}
+
+.text-input[aria-invalid="true"]:focus-visible {
+  outline-color: hsl(var(--destructive) / 0.4);
+}
+
+.line-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.text-input.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.ghost-button:hover {
+  background: hsl(var(--accent));
+}
+
+/* ── Search and display filter ──────────────────────────────────────────────────────────────── */
+
+.grid-search {
+  flex-shrink: 0;
+  padding: 4px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 6px 0 10px;
+  border: 1px solid hsl(var(--input));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--background));
+  color: hsl(var(--muted-foreground));
+}
+
+.search-box input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font: inherit;
+}
+
+.search-box .ghost-button {
+  width: 32px;
+  height: 32px;
+}
+
+.filter-bar {
+  flex-shrink: 0;
+  padding: 0 4px 4px;
+}
+
+.filter-error {
+  margin-top: 4px;
+  color: hsl(var(--destructive));
+}
+
+/* The caret echo matches the input's 12 px mono text, so the carets sit under the token they mark. */
+.filter-error pre {
+  overflow-x: auto;
+  padding: 0 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.filter-error-message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.search-hit {
+  border-radius: 4px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+/* ── Grid cells ─────────────────────────────────────────────────────────────────────────────── */
+
+.grid-cell {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.grid-cell.align-end {
+  justify-content: flex-end;
+}
+
+.cell-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono-cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-label {
+  font-weight: 500;
+}
+
+.ag-row.cursor-row {
+  background-color: hsl(var(--foreground) / 0.1);
+  border-left: 2px solid hsl(var(--foreground) / 0.6);
+}
+
+/* The app's small secondary button, floating over the grid. */
+.follow-button {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  transform: translateX(-50%);
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.follow-arrow {
+  font-size: 12px;
+}
+
+.follow-button:hover {
+  background: hsl(var(--secondary) / 0.8);
+}
+
+.status-strip {
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 4px 8px;
+  border-top: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Frame drawer ───────────────────────────────────────────────────────────────────────────── */
+
+.frame-drawer {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 160px;
+  max-height: 45%;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.frame-drawer-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 12px;
+}
+
+.close-button {
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+}
+
+.close-button .line-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.frame-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.dissect-view {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  gap: 8px;
+}
+
+.dissect-tree {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+}
+
+.dissect-row {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dissect-row:hover {
+  background: hsl(var(--muted));
+}
+
+.dissect-row.selected {
+  background: hsl(var(--primary) / 0.2);
+}
+
+.dissect-label {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.dissect-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hex-view {
+  height: 100%;
+  flex-shrink: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+  background: hsl(var(--muted) / 0.4);
+  color: hsl(var(--foreground));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+}
+
+.hex-selected {
+  background: hsl(var(--primary) / 0.3);
+  color: hsl(var(--foreground));
+}
+
+.hex-note {
+  margin-top: 8px;
+  font-size: 12px;
+}

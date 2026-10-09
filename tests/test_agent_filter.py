@@ -67,7 +67,7 @@ class TestParseAgentUrl:
         monkeypatch.setenv("ZELOS_AGENT_URL", "http://box:9000")
         assert parse_agent_url("http://other:1234") == ("other", 1234)
 
-    def test_unparseable_port_falls_back_to_default(self):
+    def test_unparsable_port_falls_back_to_default(self):
         assert parse_agent_url("host:notaport") == ("host", DEFAULT_AGENT_PORT)
 
 

@@ -27,6 +27,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      # The Packet List panel (web/) builds with Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - uses: extractions/setup-just@v4
 
       - name: Get version from tag
@@ -66,6 +71,9 @@ jobs:
       - name: Install dependencies
         run: just ci-install
 
+      - name: Install and build the panel
+        run: just web-install web-build
+
       - name: Run linting
         run: just check
 
@@ -85,6 +93,19 @@ jobs:
             exit 1
           fi
           echo "✓ Package created: $(ls $PACKAGE_FILE)"
+
+      # The panel is the manifest's [[app.panels]] entry; an archive without it
+      # installs a panel that can never load.
+      - name: Verify the panel shipped
+        run: |
+          ARCHIVE=$(ls *-${{ steps.version.outputs.VERSION }}.tar.gz)
+          for FILE in dist/panels/packet-list.html dist/panels/packet-list.options.json assets/packet-list.svg; do
+            if ! tar -tzf "$ARCHIVE" | grep -qx "$FILE"; then
+              echo "Error: $FILE missing from $ARCHIVE"
+              exit 1
+            fi
+          done
+          echo "✓ Packet List panel present in $ARCHIVE"
 
       # actions.json is what makes the standalone actions (`convert_pcap`,
       # `list_interfaces`) discoverable while the extension is stopped. Without

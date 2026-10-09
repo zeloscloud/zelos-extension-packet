@@ -1,0 +1,36 @@
+{
+  "name": "zelos-extension-packet-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The Packet List panel of the Zelos Packet extension",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@zeloscloud/app-extension-sdk": "^0.4.0",
+    "ag-grid-community": "^36.0.1",
+    "ag-grid-react": "^36.0.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.2.1",
+    "happy-dom": "^20.10.6",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.19",
+    "vitest": "^3.2.7"
+  }
+}

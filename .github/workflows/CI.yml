@@ -25,10 +25,18 @@ jobs:
         with:
           python-version: "3.11"
 
+      # The Packet List panel (web/) builds with Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - uses: extractions/setup-just@v4
 
       - name: Install dependencies
         run: just ci-install
+
+      - name: Install and build the panel
+        run: just web-install web-build
 
       - name: Run linting
         run: just check
