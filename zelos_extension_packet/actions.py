@@ -205,11 +205,20 @@ def check_permissions(interface: str = "") -> dict[str, Any]:
     default=True,
     widget="toggle",
 )
+@action.text(
+    "arxml",
+    title="ARXML",
+    description="AUTOSAR ARXML file, or a list of them, to decode SOME/IP payloads by",
+    required=False,
+    default="",
+    widget="file_path_picker",
+)
 def convert_pcap(
     input_file: str,
     output_file: str = "",
     force: bool = False,
     log_frames: bool = True,
+    arxml: str | list[str] = "",
 ) -> dict[str, Any]:
     """Convert one capture file to .trz.
 
@@ -223,12 +232,15 @@ def convert_pcap(
     source = Path(input_file).expanduser()
     if not source.is_file():
         raise FileNotFoundError(f"Input file not found: {source}")
+    autoeth = capture_mod.parse_autoeth(
+        {"advanced": {"arxml": [arxml] if isinstance(arxml, str) else list(arxml)}}
+    )
     destination = resolve_output(
         source,
         Path(output_file).expanduser() if output_file.strip() else None,
         overwrite=force,
     )
-    return _convert(source, destination, log_frames=log_frames)
+    return _convert(source, destination, log_frames=log_frames, autoeth=autoeth)
 
 
 def register_actions(registry: ActionsRegistry) -> list[str]:

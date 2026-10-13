@@ -52,6 +52,14 @@ DEFAULT_STORED_FRAME_BYTES: int | None = None
 #: `ACTION_PREFIX`: one user-visible name for actions and catalog paths alike.
 PACKET_SOURCE_NAME = "Packet"
 
+#: Source of the ARXML-decoded SOME/IP events (`<Service>/<Element>`), as the
+#: package names it for a capture's helper.
+SOMEIP_SOURCE_NAME = "SOMEIP"
+
+#: SOME/IP-SD's customary port and DoIP's (ISO 13400-2). `None` turns one off.
+DEFAULT_SOMEIP_SD_PORT = 30490
+DEFAULT_DOIP_PORT = 13400
+
 #: Catalog path separators. A VLAN interface is literally named `eth0.100`, so
 #: this is not hypothetical: an unsanitized name breaks `agent.latest` lookups.
 #: `/` is here too - it would graft extra levels onto the tree under `packet`.
@@ -91,6 +99,18 @@ METRICS_FIELDS = (
     "flush_errors",
     "drain_abandoned",
     "emit_stall_ms",
+    "someip_messages",
+    "someip_sd_entries",
+    "doip_messages",
+    "soad_pdus",
+    "someip_tp_completed",
+    "someip_tp_dropped",
+    "someip_unknown",
+    "someip_malformed",
+    "someip_signal_rows",
+    "autoeth_malformed",
+    "autoeth_truncated",
+    "autoeth_resyncs",
 )
 
 
@@ -117,6 +137,55 @@ class InterfaceConfig:
     snaplen: int = DEFAULT_SNAPLEN
     promiscuous: bool = DEFAULT_PROMISCUOUS
     buffer_size: int = DEFAULT_BUFFER_SIZE
+
+
+@dataclass(frozen=True)
+class AutoEthConfig:
+    """SOME/IP, SOME/IP-SD and DoIP dissection, and the ARXML (absolute paths)
+    SOME/IP payloads decode by. Shared by capture, replay and conversion."""
+
+    sd_port: int | None = DEFAULT_SOMEIP_SD_PORT
+    someip_ports: tuple[int, ...] = ()
+    doip_port: int | None = DEFAULT_DOIP_PORT
+    arxml: tuple[str, ...] = ()
+
+    def kwargs(self) -> dict[str, Any]:
+        """The native keyword arguments, `PacketCapture` and `PacketDecoder` alike."""
+        return {
+            "someip_sd_port": self.sd_port,
+            "someip_ports": list(self.someip_ports) or None,
+            "doip_port": self.doip_port,
+            "arxml": list(self.arxml) or None,
+        }
+
+
+def resolve_arxml(raw: str | Path) -> Path:
+    """An ARXML path, `~` expanded and relative to the working directory.
+
+    Raises:
+        ConfigError: the file does not exist.
+    """
+    path = Path(raw).expanduser().resolve()
+    if not path.is_file():
+        raise ConfigError(f"ARXML file not found: {path}")
+    return path
+
+
+def parse_autoeth(config: dict) -> AutoEthConfig:
+    """`advanced.someip`, `advanced.doip` and `advanced.arxml` as an :class:`AutoEthConfig`.
+
+    `.get` with a default, not `or`: an explicit null port turns that dissector
+    off and must survive.
+    """
+    advanced = config.get("advanced") or {}
+    someip = advanced.get("someip") or {}
+    doip = advanced.get("doip") or {}
+    return AutoEthConfig(
+        sd_port=someip.get("sd_port", DEFAULT_SOMEIP_SD_PORT),
+        someip_ports=tuple(int(p) for p in someip.get("ports") or []),
+        doip_port=doip.get("port", DEFAULT_DOIP_PORT),
+        arxml=tuple(str(resolve_arxml(p)) for p in advanced.get("arxml") or [] if str(p).strip()),
+    )
 
 
 def sanitize_capture_name(raw: str) -> str:
@@ -439,6 +508,10 @@ def remediation_text(
 #: :func:`make_trace_source`.
 _live_source: Any = None
 
+#: The live namespace's `SOMEIP` source, built on first use, for the same
+#: one-object reason.
+_live_signal_source: Any = None
+
 
 def make_trace_source(namespace: Any = None, *, cached: bool = True) -> Any:
     """The ``packet`` source every capture in this process writes into.
@@ -480,6 +553,23 @@ def make_trace_source(namespace: Any = None, *, cached: bool = True) -> Any:
     return _live_source
 
 
+def make_signal_source(namespace: Any = None, *, cached: bool = True) -> Any:
+    """The ``SOMEIP`` source the ARXML-decoded events go to, beside `make_trace_source`'s.
+
+    Same rules: one live object per process, a fresh one per conversion
+    namespace, and `cached` picks the type.
+    """
+    import zelos_sdk
+
+    factory = zelos_sdk.TraceSourceCache if cached else zelos_sdk.TraceSource
+    if namespace is not None:
+        return factory(SOMEIP_SOURCE_NAME, namespace=namespace)
+    global _live_signal_source
+    if _live_signal_source is None:
+        _live_signal_source = factory(SOMEIP_SOURCE_NAME, namespace=None)
+    return _live_signal_source
+
+
 @dataclass
 class CaptureSession:
     """Lifecycle wrapper around one ``zelos_packet.PacketCapture``."""
@@ -488,6 +578,7 @@ class CaptureSession:
     endpoint: AgentEndpoint | None = None
     log_frames: bool = True
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES
+    autoeth: AutoEthConfig = AutoEthConfig()
     _capture: Any = field(default=None, init=False, repr=False)
     _source: Any = field(default=None, init=False, repr=False)
 
@@ -519,6 +610,8 @@ class CaptureSession:
             "agent_url": agent_url(),
             "exclude_agent_addrs": list(self.endpoint.literals) if self.endpoint else None,
             "exclude_agent_port": self.endpoint.port if self.endpoint else None,
+            # The helper writes the ARXML-decoded rows to its own SOMEIP source.
+            **self.autoeth.kwargs(),
         }
 
     def start(self) -> None:
@@ -646,6 +739,7 @@ def make_decoder(
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
     namespace: Any = None,
     cached: bool = True,
+    autoeth: AutoEthConfig = AutoEthConfig(),
 ) -> Any:
     """A ``PacketDecoder`` emitting into `namespace` under a sanitized `name`.
 
@@ -659,11 +753,15 @@ def make_decoder(
     genuinely disagree on - see `make_trace_source`.
     """
     source = make_trace_source(namespace, cached=cached)
+    # The SOMEIP source only when an ARXML decodes into it.
+    signals = make_signal_source(namespace, cached=cached) if autoeth.arxml else None
     return pkg.module().PacketDecoder(
         name=sanitize_capture_name(name),
         source=source,
         log_frames=log_frames,
         stored_frame_bytes=stored_frame_bytes,
+        signal_source=signals,
+        **autoeth.kwargs(),
     )
 
 
@@ -673,6 +771,7 @@ def replay_pcap(
     name: str = "pcap",
     log_frames: bool = True,
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
+    autoeth: AutoEthConfig = AutoEthConfig(),
 ) -> dict[str, Any]:
     """Decode a pcap/pcapng into the *live* trace namespace. No privileges required.
 
@@ -690,7 +789,9 @@ def replay_pcap(
     logger.info(
         "Replaying %s into %s.%s/packets", pcap, PACKET_SOURCE_NAME, sanitize_capture_name(name)
     )
-    decoder = make_decoder(name, log_frames=log_frames, stored_frame_bytes=stored_frame_bytes)
+    decoder = make_decoder(
+        name, log_frames=log_frames, stored_frame_bytes=stored_frame_bytes, autoeth=autoeth
+    )
     count = decoder.convert_file(str(pcap), realtime=True)
     decoder.flush()
     logger.info("Replay of %s complete: %d packets", pcap.name, count)
