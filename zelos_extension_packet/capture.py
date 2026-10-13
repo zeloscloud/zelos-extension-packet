@@ -111,6 +111,8 @@ METRICS_FIELDS = (
     "someip_unknown",
     "someip_malformed",
     "someip_signal_rows",
+    "pdu_signal_rows",
+    "pdu_decode_errors",
     "autoeth_malformed",
     "autoeth_truncated",
     "autoeth_resyncs",
