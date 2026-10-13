@@ -38,6 +38,9 @@ from .agent_filter import AgentEndpoint, ConfigError, agent_url
 logger = logging.getLogger(__name__)
 
 DEFAULT_SNAPLEN = 512
+#: Snaplen when ARXML or SOME/IP ports are configured and none is set: a full
+#: Ethernet frame, so SOME/IP payloads past ~450 bytes arrive whole.
+AUTOETH_SNAPLEN = 1518
 DEFAULT_BUFFER_SIZE = 8 * 1024 * 1024
 DEFAULT_PROMISCUOUS = False
 #: Bytes of each packet stored in the `frame` column. `None` stores every
@@ -213,7 +216,9 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
 
     `advanced.snaplen`, `advanced.promiscuous` and `advanced.buffer_size` are
     fanned out to every interface: one byte budget for the whole capture, which
-    is how the CLI's single `--snaplen` has always behaved.
+    is how the CLI's single `--snaplen` has always behaved. An unset snaplen is
+    `AUTOETH_SNAPLEN` with `advanced.arxml` or `advanced.someip.ports`, else
+    `DEFAULT_SNAPLEN`.
 
     Defaults are applied here as well as in the JSON Schema, so CLI callers -
     which never go through `load_config` - get identical behaviour.
@@ -230,7 +235,9 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
         raise ConfigError("'interfaces' must be a list of capture configurations")
 
     advanced = config.get("advanced") or {}
-    snaplen = int(advanced.get("snaplen") or DEFAULT_SNAPLEN)
+    arxml = any(str(a).strip() for a in advanced.get("arxml") or [])
+    payloads = arxml or (advanced.get("someip") or {}).get("ports")
+    snaplen = int(advanced.get("snaplen") or (AUTOETH_SNAPLEN if payloads else DEFAULT_SNAPLEN))
     promiscuous = bool(advanced.get("promiscuous", DEFAULT_PROMISCUOUS))
     buffer_size = int(advanced.get("buffer_size") or DEFAULT_BUFFER_SIZE)
 

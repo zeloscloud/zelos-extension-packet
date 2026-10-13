@@ -22,6 +22,7 @@ from zelos_extension_packet.capture import (
     InterfaceConfig,
     make_decoder,
     parse_autoeth,
+    parse_interfaces,
 )
 from zelos_extension_packet.converter import convert_pcap
 
@@ -51,6 +52,19 @@ class TestConfig:
             }
         )
         assert autoeth == AutoEthConfig(None, (30509,), None, (str(ARXML.resolve()),))
+
+    @pytest.mark.parametrize(
+        ("advanced", "snaplen"),
+        [
+            ({}, 512),
+            ({"arxml": ["a.arxml"]}, 1518),
+            ({"someip": {"ports": [30509]}}, 1518),
+            ({"arxml": ["a.arxml"], "snaplen": 512}, 512),  # a set value wins
+        ],
+    )
+    def test_unset_snaplen_is_a_full_frame_with_arxml_or_ports(self, advanced, snaplen):
+        [cfg] = parse_interfaces({"interfaces": [{"interface": "eth0"}], "advanced": advanced})
+        assert cfg.snaplen == snaplen
 
     def test_missing_arxml_is_a_config_error(self, tmp_path: Path):
         with pytest.raises(ConfigError, match="ARXML file not found"):

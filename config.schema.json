@@ -52,8 +52,8 @@
         "snaplen": {
           "type": "integer",
           "title": "Snapshot Length (bytes captured)",
-          "description": "Bytes captured per packet on every interface; the rest is truncated by the kernel. This is the CAPTURE limit - what reaches the decoder at all. 512 keeps the whole embedded/industrial control plane byte-complete - every legal Modbus-TCP frame (MBAP 7 + PDU up to 253, about 314 B once Ethernet/IP/TCP headers are counted), DHCP (whose semantics live in the options after the 236-byte BOOTP area), DNS and mDNS responses, MQTT CONNECT, DoIP, SOME/IP and PTP - while cutting bulk transfers so a file copy does not fill the trace. 128 would break DHCP and DNS responses outright. Raise it only when you need full payloads.",
-          "default": 512,
+          "description": "Bytes captured per packet on every interface; the rest is truncated by the kernel. This is the CAPTURE limit - what reaches the decoder at all. 512 keeps the whole embedded/industrial control plane byte-complete - every legal Modbus-TCP frame (MBAP 7 + PDU up to 253, about 314 B once Ethernet/IP/TCP headers are counted), DHCP (whose semantics live in the options after the 236-byte BOOTP area), DNS and mDNS responses, MQTT CONNECT, DoIP, SOME/IP and PTP - while cutting bulk transfers so a file copy does not fill the trace. 128 would break DHCP and DNS responses outright. Raise it only when you need full payloads. Unset, it is 512, or 1518 (a full Ethernet frame) when ARXML files or SOME/IP ports are set, so SOME/IP payloads arrive whole.",
+          "ui:placeholder": "512; 1518 with ARXML or SOME/IP ports",
           "minimum": 64,
           "maximum": 262144
         },
@@ -101,7 +101,7 @@
         "arxml": {
           "type": "array",
           "title": "ARXML Files",
-          "description": "AUTOSAR ARXML files (R4.2 or R19-11 and later), loaded as one system. SOME/IP payloads of the services they describe decode into the 'SOMEIP' source, one event per event, method and field with one column per value. Load the ECU extract for the ECUs on the tapped link rather than a whole-vehicle file. Payloads past the Snapshot Length are cut: raise it to 1518 for SOME/IP messages over about 450 bytes.",
+          "description": "AUTOSAR ARXML files (R4.2 or R19-11 and later), loaded as one system. SOME/IP payloads of the services they describe decode into the 'SOMEIP' source, one event per event, method and field with one column per value. Load the ECU extract for the ECUs on the tapped link rather than a whole-vehicle file. With ARXML and no Snapshot Length set, 1518 bytes are captured per packet.",
           "items": {
             "type": "string",
             "ui:widget": "file-picker",
