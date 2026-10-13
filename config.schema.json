@@ -98,6 +98,71 @@
           "default": null,
           "minimum": 1
         },
+        "arxml": {
+          "type": "array",
+          "title": "ARXML Files",
+          "description": "AUTOSAR ARXML files (R4.2 or R19-11 and later), loaded as one system. SOME/IP payloads of the services they describe decode into the 'SOMEIP' source, one event per event, method and field with one column per value. Load the ECU extract for the ECUs on the tapped link rather than a whole-vehicle file. Payloads past the Snapshot Length are cut: raise it to 1518 for SOME/IP messages over about 450 bytes.",
+          "items": {
+            "type": "string",
+            "ui:widget": "file-picker",
+            "ui:options": {
+              "accept": ".arxml"
+            }
+          },
+          "default": [],
+          "ui:orderable": true
+        },
+        "someip": {
+          "type": "object",
+          "title": "SOME/IP",
+          "description": "SOME/IP messages land in '<capture>/someip', one row per message; SD entries in '<capture>/someip_sd'. Ports SD offers and the ARXML names are dissected as SOME/IP on their own.",
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "sd_port": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "title": "SD Port",
+              "description": "UDP port of SOME/IP Service Discovery. null turns SD off.",
+              "default": 30490,
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "ports": {
+              "type": "array",
+              "title": "More SOME/IP Ports",
+              "description": "SOME/IP ports, UDP or TCP, beyond those SD offers and the ARXML name.",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "default": []
+            }
+          }
+        },
+        "doip": {
+          "type": "object",
+          "title": "DoIP",
+          "description": "Diagnostics over IP (ISO 13400) lands in '<capture>/doip', one row per message, with the UDS service id of each diagnostic message.",
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "port": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "title": "DoIP Port",
+              "description": "UDP and TCP port of DoIP. null turns DoIP off.",
+              "default": 13400,
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        },
         "log_level": {
           "type": "string",
           "title": "Log Level",

@@ -108,6 +108,10 @@ class FakeCapture:
         source=None,
         name=None,
         agent_url=None,
+        someip_sd_port=30490,
+        someip_ports=None,
+        doip_port=13400,
+        arxml=None,
     ):
         self.kwargs = {
             "interface": interface,
@@ -124,6 +128,10 @@ class FakeCapture:
             "exclude_agent_port": exclude_agent_port,
             "source": source,
             "agent_url": agent_url,
+            "someip_sd_port": someip_sd_port,
+            "someip_ports": someip_ports,
+            "doip_port": doip_port,
+            "arxml": arxml,
         }
         self.started = False
         self.stopped = False
@@ -151,7 +159,7 @@ class FakeCapture:
         )
 
     def metrics(self) -> SimpleNamespace:
-        """Mirrors `zelos_packet.Metrics` (all 11 getters)."""
+        """Mirrors `zelos_packet.Metrics` (the getters `METRICS_FIELDS` reads)."""
         return SimpleNamespace(
             packets_received=12,
             packets_emitted=9,
@@ -164,6 +172,18 @@ class FakeCapture:
             drain_abandoned=0,
             emit_stall_ns=0,
             emit_stall_ms=0.0,
+            someip_messages=4,
+            someip_sd_entries=1,
+            doip_messages=0,
+            soad_pdus=0,
+            someip_tp_completed=0,
+            someip_tp_dropped=0,
+            someip_unknown=0,
+            someip_malformed=0,
+            someip_signal_rows=3,
+            autoeth_malformed=0,
+            autoeth_truncated=0,
+            autoeth_resyncs=0,
         )
 
 
@@ -184,6 +204,11 @@ class FakeDecoder:
         source=None,
         exclude_agent_addrs=None,
         exclude_agent_port=None,
+        someip_sd_port=30490,
+        someip_ports=None,
+        doip_port=13400,
+        arxml=None,
+        signal_source=None,
     ):
         self.kwargs = {
             "name": name,
@@ -195,6 +220,11 @@ class FakeDecoder:
             "source": source,
             "exclude_agent_addrs": exclude_agent_addrs,
             "exclude_agent_port": exclude_agent_port,
+            "someip_sd_port": someip_sd_port,
+            "someip_ports": someip_ports,
+            "doip_port": doip_port,
+            "arxml": arxml,
+            "signal_source": signal_source,
         }
         self.flushed = False
         self.packets = 0
