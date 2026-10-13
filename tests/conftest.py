@@ -181,6 +181,8 @@ class FakeCapture:
             someip_unknown=0,
             someip_malformed=0,
             someip_signal_rows=3,
+            pdu_signal_rows=0,
+            pdu_decode_errors=0,
             autoeth_malformed=0,
             autoeth_truncated=0,
             autoeth_resyncs=0,
