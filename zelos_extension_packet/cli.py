@@ -339,7 +339,12 @@ def check_cmd(interface: str) -> None:
 
 @click.command("capture")
 @click.argument("interface", nargs=-1, required=True)
-@click.option("--snaplen", type=int, default=512, show_default=True, help="Bytes per packet.")
+@click.option(
+    "--snaplen",
+    type=int,
+    default=None,
+    help="Bytes per packet. [default: 512; 1518 with --arxml or --someip-port]",
+)
 @click.option("--promiscuous", is_flag=True, help="Capture frames not addressed to this host.")
 @click.option(
     "--buffer-size", type=int, default=8 * 1024 * 1024, show_default=True, help="Kernel buffer."
@@ -356,7 +361,7 @@ def check_cmd(interface: str) -> None:
 @_autoeth_options
 def capture_cmd(
     interface: tuple[str, ...],
-    snaplen: int,
+    snaplen: int | None,
     promiscuous: bool,
     buffer_size: int,
     no_frames: bool,
@@ -386,6 +391,9 @@ def capture_cmd(
                     "snaplen": snaplen,
                     "promiscuous": promiscuous,
                     "buffer_size": buffer_size,
+                    # an unset --snaplen follows these, as the app's settings
+                    "arxml": [str(a) for a in arxml],
+                    "someip": {"ports": list(someip_port)},
                 },
             }
         )

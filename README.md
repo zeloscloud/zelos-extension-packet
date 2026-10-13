@@ -66,7 +66,7 @@ With `advanced.arxml`, SOME/IP payloads decode into the **SOMEIP** source:
 - nested members join with `_` (`pos_x`); fixed arrays up to 16 flatten to `name_<i>`; longer and dynamic arrays are one bytes column plus `name_count`
 - reads SOME/IP service interface deployments, R4.2 and R19-11 onward; SoAd PDU signals are not decoded yet (raw `pdu` rows)
 - load the ECU extract for the ECUs on the tapped link, not a whole-vehicle file
-- payloads past `advanced.snaplen` are cut: raise it to `1518` for SOME/IP messages over ~450 bytes
+- with `advanced.arxml` or `advanced.someip.ports` and no `advanced.snaplen`, 1518 bytes are captured per packet, so SOME/IP payloads arrive whole
 
 ## Settings
 
@@ -74,7 +74,7 @@ With `advanced.arxml`, SOME/IP payloads decode into the **SOMEIP** source:
 | --- | --- | --- |
 | `interfaces[].interface` | – | NIC to capture |
 | `interfaces[].name` | interface name | Names this capture's branch in the tree |
-| `advanced.snaplen` | `512` | Bytes captured per packet, on every interface; raise for full payloads |
+| `advanced.snaplen` | `512`; `1518` with `arxml` or `someip.ports` | Bytes captured per packet, on every interface; raise for full payloads |
 | `advanced.promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
 | `advanced.buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
 | `advanced.replay_pcap` | – | Replay a file instead of capturing (original pace, stamped from now) |
