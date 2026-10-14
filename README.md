@@ -59,12 +59,12 @@ On by default, on every capture, replay and conversion:
 | DoIP | UDP and TCP 13400 | `Packet/<capture>/doip` | message, with addresses and the UDS service id |
 | SoAd PDUs | sockets the ARXML names | `Packet/<capture>/pdu` | PDU, with its ARXML name |
 
-With `advanced.arxml`, SOME/IP payloads and SoAd PDUs decode into the **SOMEIP** source:
+With `advanced.arxml`, SOME/IP payloads decode into the **SOMEIP** source and SoAd PDUs into the **PDU** source:
 
 - `SOMEIP/<Service>/<Event|Method|Field>`, one column per value, compu methods and units applied
 - one event per method and per field, requests and responses as rows; every row carries `message_type`, `session_id`, `client_id`, `return_code`, `instance_id` (from SD); fields add `method_id`
 - nested members join with `_` (`pos_x`); fixed arrays up to 16 flatten to `name_<i>`; longer and dynamic arrays are one bytes column plus `name_count`
-- SoAd PDUs: `SOMEIP/<header id>_<PDU>` (`00000101_DemoPdu`), one column per signal; an E2E-protected PDU adds `e2e_status` (`ok`, `wrong_crc`, `wrong_sequence`, `repeated`, `not_checked`), a secured one `secoc`
+- SoAd PDUs: `PDU/<PDU>` by short-name (`PDU/DemoPdu`), contained and dynamic PDUs as `PDU/<PDU>/<PDU>`; columns `header_id`, `src_ip`, `src_port`, `dst_ip`, `dst_port`, then one per signal; an E2E-protected PDU adds `e2e_status` (`ok`, `wrong_crc`, `wrong_sequence`, `repeated`, `not_checked`), a secured one `secoc`; two SoAd PDUs with one short-name fail the load
 - reads SOME/IP service interface deployments, R4.2 and R19-11 onward
 - load the ECU extract for the ECUs on the tapped link, not a whole-vehicle file
 - with `advanced.arxml` or `advanced.someip.ports` and no `advanced.snaplen`, 1518 bytes are captured per packet, so SOME/IP payloads arrive whole

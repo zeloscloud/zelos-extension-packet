@@ -101,7 +101,7 @@
         "arxml": {
           "type": "array",
           "title": "ARXML Files",
-          "description": "AUTOSAR ARXML files (R4.2 or R19-11 and later), loaded as one system. SOME/IP payloads of the services they describe decode into the 'SOMEIP' source, one event per event, method and field with one column per value. Load the ECU extract for the ECUs on the tapped link rather than a whole-vehicle file. With ARXML and no Snapshot Length set, 1518 bytes are captured per packet.",
+          "description": "AUTOSAR ARXML files (R4.2 or R19-11 and later), loaded as one system. SOME/IP payloads of the services they describe decode into the 'SOMEIP' source, one event per event, method and field with one column per value; SoAd PDUs on the sockets they describe decode into the 'PDU' source, one event per PDU. Load the ECU extract for the ECUs on the tapped link rather than a whole-vehicle file. With ARXML and no Snapshot Length set, 1518 bytes are captured per packet.",
           "items": {
             "type": "string",
             "ui:widget": "file-picker",

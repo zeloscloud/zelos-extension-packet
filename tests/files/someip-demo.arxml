@@ -123,6 +123,10 @@
               <SHORT-NAME>DegC</SHORT-NAME>
               <DISPLAY-NAME>degC</DISPLAY-NAME>
             </UNIT>
+            <UNIT>
+              <SHORT-NAME>Nm</SHORT-NAME>
+              <DISPLAY-NAME>Nm</DISPLAY-NAME>
+            </UNIT>
           </ELEMENTS>
         </AR-PACKAGE>
         <AR-PACKAGE>
@@ -199,6 +203,47 @@
                     <UPPER-LIMIT INTERVAL-TYPE="CLOSED">3</UPPER-LIMIT>
                     <COMPU-CONST>
                       <VT>FAULT</VT>
+                    </COMPU-CONST>
+                  </COMPU-SCALE>
+                </COMPU-SCALES>
+              </COMPU-INTERNAL-TO-PHYS>
+            </COMPU-METHOD>
+            <COMPU-METHOD>
+              <SHORT-NAME>Torque</SHORT-NAME>
+              <CATEGORY>LINEAR</CATEGORY>
+              <COMPU-INTERNAL-TO-PHYS>
+                <COMPU-SCALES>
+                  <COMPU-SCALE>
+                    <COMPU-RATIONAL-COEFFS>
+                      <COMPU-NUMERATOR>
+                        <V>0</V>
+                        <V>0.1</V>
+                      </COMPU-NUMERATOR>
+                      <COMPU-DENOMINATOR>
+                        <V>1</V>
+                      </COMPU-DENOMINATOR>
+                    </COMPU-RATIONAL-COEFFS>
+                  </COMPU-SCALE>
+                </COMPU-SCALES>
+              </COMPU-INTERNAL-TO-PHYS>
+            </COMPU-METHOD>
+            <COMPU-METHOD>
+              <SHORT-NAME>PduState</SHORT-NAME>
+              <CATEGORY>TEXTTABLE</CATEGORY>
+              <COMPU-INTERNAL-TO-PHYS>
+                <COMPU-SCALES>
+                  <COMPU-SCALE>
+                    <LOWER-LIMIT INTERVAL-TYPE="CLOSED">0</LOWER-LIMIT>
+                    <UPPER-LIMIT INTERVAL-TYPE="CLOSED">0</UPPER-LIMIT>
+                    <COMPU-CONST>
+                      <VT>OFF</VT>
+                    </COMPU-CONST>
+                  </COMPU-SCALE>
+                  <COMPU-SCALE>
+                    <LOWER-LIMIT INTERVAL-TYPE="CLOSED">1</LOWER-LIMIT>
+                    <UPPER-LIMIT INTERVAL-TYPE="CLOSED">1</UPPER-LIMIT>
+                    <COMPU-CONST>
+                      <VT>ON</VT>
                     </COMPU-CONST>
                   </COMPU-SCALE>
                 </COMPU-SCALES>
@@ -393,6 +438,18 @@
             <FIBEX-ELEMENT-REF-CONDITIONAL>
               <FIBEX-ELEMENT-REF DEST="SERVICE-INSTANCE-COLLECTION-SET">/ServiceInstances/Services</FIBEX-ELEMENT-REF>
             </FIBEX-ELEMENT-REF-CONDITIONAL>
+            <FIBEX-ELEMENT-REF-CONDITIONAL>
+              <FIBEX-ELEMENT-REF DEST="I-SIGNAL-I-PDU">/Pdus/DemoPdu</FIBEX-ELEMENT-REF>
+            </FIBEX-ELEMENT-REF-CONDITIONAL>
+            <FIBEX-ELEMENT-REF-CONDITIONAL>
+              <FIBEX-ELEMENT-REF DEST="I-SIGNAL">/ISignals/torque</FIBEX-ELEMENT-REF>
+            </FIBEX-ELEMENT-REF-CONDITIONAL>
+            <FIBEX-ELEMENT-REF-CONDITIONAL>
+              <FIBEX-ELEMENT-REF DEST="I-SIGNAL">/ISignals/rpm</FIBEX-ELEMENT-REF>
+            </FIBEX-ELEMENT-REF-CONDITIONAL>
+            <FIBEX-ELEMENT-REF-CONDITIONAL>
+              <FIBEX-ELEMENT-REF DEST="I-SIGNAL">/ISignals/state</FIBEX-ELEMENT-REF>
+            </FIBEX-ELEMENT-REF-CONDITIONAL>
           </FIBEX-ELEMENTS>
         </SYSTEM>
       </ELEMENTS>
@@ -413,6 +470,37 @@
                       <COMMUNICATION-CONNECTOR-REF DEST="ETHERNET-COMMUNICATION-CONNECTOR">/Ecus/DemoServer/EthConn</COMMUNICATION-CONNECTOR-REF>
                     </COMMUNICATION-CONNECTOR-REF-CONDITIONAL>
                   </COMM-CONNECTORS>
+                  <I-SIGNAL-TRIGGERINGS>
+                    <I-SIGNAL-TRIGGERING>
+                      <SHORT-NAME>ST_torque</SHORT-NAME>
+                      <I-SIGNAL-REF DEST="I-SIGNAL">/ISignals/torque</I-SIGNAL-REF>
+                    </I-SIGNAL-TRIGGERING>
+                    <I-SIGNAL-TRIGGERING>
+                      <SHORT-NAME>ST_rpm</SHORT-NAME>
+                      <I-SIGNAL-REF DEST="I-SIGNAL">/ISignals/rpm</I-SIGNAL-REF>
+                    </I-SIGNAL-TRIGGERING>
+                    <I-SIGNAL-TRIGGERING>
+                      <SHORT-NAME>ST_state</SHORT-NAME>
+                      <I-SIGNAL-REF DEST="I-SIGNAL">/ISignals/state</I-SIGNAL-REF>
+                    </I-SIGNAL-TRIGGERING>
+                  </I-SIGNAL-TRIGGERINGS>
+                  <PDU-TRIGGERINGS>
+                    <PDU-TRIGGERING>
+                      <SHORT-NAME>PT_DemoPdu</SHORT-NAME>
+                      <I-PDU-REF DEST="I-SIGNAL-I-PDU">/Pdus/DemoPdu</I-PDU-REF>
+                      <I-SIGNAL-TRIGGERINGS>
+                        <I-SIGNAL-TRIGGERING-REF-CONDITIONAL>
+                          <I-SIGNAL-TRIGGERING-REF DEST="I-SIGNAL-TRIGGERING">/Ethernet/DemoEth/DemoEthCh/ST_torque</I-SIGNAL-TRIGGERING-REF>
+                        </I-SIGNAL-TRIGGERING-REF-CONDITIONAL>
+                        <I-SIGNAL-TRIGGERING-REF-CONDITIONAL>
+                          <I-SIGNAL-TRIGGERING-REF DEST="I-SIGNAL-TRIGGERING">/Ethernet/DemoEth/DemoEthCh/ST_rpm</I-SIGNAL-TRIGGERING-REF>
+                        </I-SIGNAL-TRIGGERING-REF-CONDITIONAL>
+                        <I-SIGNAL-TRIGGERING-REF-CONDITIONAL>
+                          <I-SIGNAL-TRIGGERING-REF DEST="I-SIGNAL-TRIGGERING">/Ethernet/DemoEth/DemoEthCh/ST_state</I-SIGNAL-TRIGGERING-REF>
+                        </I-SIGNAL-TRIGGERING-REF-CONDITIONAL>
+                      </I-SIGNAL-TRIGGERINGS>
+                    </PDU-TRIGGERING>
+                  </PDU-TRIGGERINGS>
                   <NETWORK-ENDPOINTS>
                     <NETWORK-ENDPOINT>
                       <SHORT-NAME>NE_Server</SHORT-NAME>
@@ -434,8 +522,35 @@
                         </IPV-4-CONFIGURATION>
                       </NETWORK-ENDPOINT-ADDRESSES>
                     </NETWORK-ENDPOINT>
+                    <NETWORK-ENDPOINT>
+                      <SHORT-NAME>NE_Client</SHORT-NAME>
+                      <NETWORK-ENDPOINT-ADDRESSES>
+                        <IPV-4-CONFIGURATION>
+                          <IPV-4-ADDRESS>127.0.0.2</IPV-4-ADDRESS>
+                          <IPV-4-ADDRESS-SOURCE>FIXED</IPV-4-ADDRESS-SOURCE>
+                          <NETWORK-MASK>255.0.0.0</NETWORK-MASK>
+                        </IPV-4-CONFIGURATION>
+                      </NETWORK-ENDPOINT-ADDRESSES>
+                    </NETWORK-ENDPOINT>
                   </NETWORK-ENDPOINTS>
                   <SO-AD-CONFIG>
+                    <CONNECTION-BUNDLES>
+                      <SOCKET-CONNECTION-BUNDLE>
+                        <SHORT-NAME>DemoPduBundle</SHORT-NAME>
+                        <BUNDLED-CONNECTIONS>
+                          <SOCKET-CONNECTION>
+                            <CLIENT-PORT-REF DEST="SOCKET-ADDRESS">/Ethernet/DemoEth/DemoEthCh/SA_DemoPduClient</CLIENT-PORT-REF>
+                            <PDUS>
+                              <SOCKET-CONNECTION-IPDU-IDENTIFIER>
+                                <HEADER-ID>257</HEADER-ID>
+                                <PDU-TRIGGERING-REF DEST="PDU-TRIGGERING">/Ethernet/DemoEth/DemoEthCh/PT_DemoPdu</PDU-TRIGGERING-REF>
+                              </SOCKET-CONNECTION-IPDU-IDENTIFIER>
+                            </PDUS>
+                          </SOCKET-CONNECTION>
+                        </BUNDLED-CONNECTIONS>
+                        <SERVER-PORT-REF DEST="SOCKET-ADDRESS">/Ethernet/DemoEth/DemoEthCh/SA_DemoPdu</SERVER-PORT-REF>
+                      </SOCKET-CONNECTION-BUNDLE>
+                    </CONNECTION-BUNDLES>
                     <SOCKET-ADDRESSS>
                       <SOCKET-ADDRESS>
                         <SHORT-NAME>SA_DemoService</SHORT-NAME>
@@ -468,6 +583,35 @@
                         <MULTICAST-CONNECTOR-REFS>
                           <MULTICAST-CONNECTOR-REF DEST="ETHERNET-COMMUNICATION-CONNECTOR">/Ecus/DemoServer/EthConn</MULTICAST-CONNECTOR-REF>
                         </MULTICAST-CONNECTOR-REFS>
+                      </SOCKET-ADDRESS>
+                      <SOCKET-ADDRESS>
+                        <SHORT-NAME>SA_DemoPdu</SHORT-NAME>
+                        <APPLICATION-ENDPOINT>
+                          <SHORT-NAME>SA_DemoPdu_AE</SHORT-NAME>
+                          <NETWORK-ENDPOINT-REF DEST="NETWORK-ENDPOINT">/Ethernet/DemoEth/DemoEthCh/NE_Server</NETWORK-ENDPOINT-REF>
+                          <TP-CONFIGURATION>
+                            <UDP-TP>
+                              <UDP-TP-PORT>
+                                <PORT-NUMBER>30600</PORT-NUMBER>
+                              </UDP-TP-PORT>
+                            </UDP-TP>
+                          </TP-CONFIGURATION>
+                        </APPLICATION-ENDPOINT>
+                        <CONNECTOR-REF DEST="ETHERNET-COMMUNICATION-CONNECTOR">/Ecus/DemoServer/EthConn</CONNECTOR-REF>
+                      </SOCKET-ADDRESS>
+                      <SOCKET-ADDRESS>
+                        <SHORT-NAME>SA_DemoPduClient</SHORT-NAME>
+                        <APPLICATION-ENDPOINT>
+                          <SHORT-NAME>SA_DemoPduClient_AE</SHORT-NAME>
+                          <NETWORK-ENDPOINT-REF DEST="NETWORK-ENDPOINT">/Ethernet/DemoEth/DemoEthCh/NE_Client</NETWORK-ENDPOINT-REF>
+                          <TP-CONFIGURATION>
+                            <UDP-TP>
+                              <UDP-TP-PORT>
+                                <PORT-NUMBER>40001</PORT-NUMBER>
+                              </UDP-TP-PORT>
+                            </UDP-TP>
+                          </TP-CONFIGURATION>
+                        </APPLICATION-ENDPOINT>
                       </SOCKET-ADDRESS>
                     </SOCKET-ADDRESSS>
                   </SO-AD-CONFIG>
@@ -533,6 +677,165 @@
             </PROVIDED-SERVICE-INSTANCE>
           </SERVICE-INSTANCES>
         </SERVICE-INSTANCE-COLLECTION-SET>
+      </ELEMENTS>
+    </AR-PACKAGE>
+    <AR-PACKAGE>
+      <SHORT-NAME>Pdus</SHORT-NAME>
+      <ELEMENTS>
+        <I-SIGNAL-I-PDU>
+          <SHORT-NAME>DemoPdu</SHORT-NAME>
+          <LENGTH>8</LENGTH>
+          <I-SIGNAL-TO-PDU-MAPPINGS>
+            <I-SIGNAL-TO-I-PDU-MAPPING>
+              <SHORT-NAME>torque</SHORT-NAME>
+              <I-SIGNAL-REF DEST="I-SIGNAL">/ISignals/torque</I-SIGNAL-REF>
+              <PACKING-BYTE-ORDER>MOST-SIGNIFICANT-BYTE-LAST</PACKING-BYTE-ORDER>
+              <START-POSITION>24</START-POSITION>
+              <TRANSFER-PROPERTY>PENDING</TRANSFER-PROPERTY>
+            </I-SIGNAL-TO-I-PDU-MAPPING>
+            <I-SIGNAL-TO-I-PDU-MAPPING>
+              <SHORT-NAME>rpm</SHORT-NAME>
+              <I-SIGNAL-REF DEST="I-SIGNAL">/ISignals/rpm</I-SIGNAL-REF>
+              <PACKING-BYTE-ORDER>MOST-SIGNIFICANT-BYTE-LAST</PACKING-BYTE-ORDER>
+              <START-POSITION>40</START-POSITION>
+              <TRANSFER-PROPERTY>PENDING</TRANSFER-PROPERTY>
+            </I-SIGNAL-TO-I-PDU-MAPPING>
+            <I-SIGNAL-TO-I-PDU-MAPPING>
+              <SHORT-NAME>state</SHORT-NAME>
+              <I-SIGNAL-REF DEST="I-SIGNAL">/ISignals/state</I-SIGNAL-REF>
+              <PACKING-BYTE-ORDER>MOST-SIGNIFICANT-BYTE-LAST</PACKING-BYTE-ORDER>
+              <START-POSITION>56</START-POSITION>
+              <TRANSFER-PROPERTY>PENDING</TRANSFER-PROPERTY>
+            </I-SIGNAL-TO-I-PDU-MAPPING>
+          </I-SIGNAL-TO-PDU-MAPPINGS>
+        </I-SIGNAL-I-PDU>
+      </ELEMENTS>
+    </AR-PACKAGE>
+    <AR-PACKAGE>
+      <SHORT-NAME>ISignals</SHORT-NAME>
+      <ELEMENTS>
+        <I-SIGNAL>
+          <SHORT-NAME>torque</SHORT-NAME>
+          <DATA-TYPE-POLICY>OVERRIDE</DATA-TYPE-POLICY>
+          <LENGTH>16</LENGTH>
+          <NETWORK-REPRESENTATION-PROPS>
+            <SW-DATA-DEF-PROPS-VARIANTS>
+              <SW-DATA-DEF-PROPS-CONDITIONAL>
+                <BASE-TYPE-REF DEST="SW-BASE-TYPE">/DataTypes/BaseTypes/sint16</BASE-TYPE-REF>
+              </SW-DATA-DEF-PROPS-CONDITIONAL>
+            </SW-DATA-DEF-PROPS-VARIANTS>
+          </NETWORK-REPRESENTATION-PROPS>
+          <SYSTEM-SIGNAL-REF DEST="SYSTEM-SIGNAL">/SystemSignals/torque</SYSTEM-SIGNAL-REF>
+          <TRANSFORMATION-I-SIGNAL-PROPSS>
+            <END-TO-END-TRANSFORMATION-I-SIGNAL-PROPS>
+              <END-TO-END-TRANSFORMATION-I-SIGNAL-PROPS-VARIANTS>
+                <END-TO-END-TRANSFORMATION-I-SIGNAL-PROPS-CONDITIONAL>
+                  <TRANSFORMER-REF DEST="TRANSFORMATION-TECHNOLOGY">/Transformers/E2E/E2E_P05</TRANSFORMER-REF>
+                  <DATA-IDS>
+                    <DATA-ID>291</DATA-ID>
+                  </DATA-IDS>
+                  <DATA-LENGTH>64</DATA-LENGTH>
+                </END-TO-END-TRANSFORMATION-I-SIGNAL-PROPS-CONDITIONAL>
+              </END-TO-END-TRANSFORMATION-I-SIGNAL-PROPS-VARIANTS>
+            </END-TO-END-TRANSFORMATION-I-SIGNAL-PROPS>
+          </TRANSFORMATION-I-SIGNAL-PROPSS>
+        </I-SIGNAL>
+        <I-SIGNAL>
+          <SHORT-NAME>rpm</SHORT-NAME>
+          <DATA-TYPE-POLICY>OVERRIDE</DATA-TYPE-POLICY>
+          <LENGTH>16</LENGTH>
+          <NETWORK-REPRESENTATION-PROPS>
+            <SW-DATA-DEF-PROPS-VARIANTS>
+              <SW-DATA-DEF-PROPS-CONDITIONAL>
+                <BASE-TYPE-REF DEST="SW-BASE-TYPE">/DataTypes/BaseTypes/uint16</BASE-TYPE-REF>
+              </SW-DATA-DEF-PROPS-CONDITIONAL>
+            </SW-DATA-DEF-PROPS-VARIANTS>
+          </NETWORK-REPRESENTATION-PROPS>
+          <SYSTEM-SIGNAL-REF DEST="SYSTEM-SIGNAL">/SystemSignals/rpm</SYSTEM-SIGNAL-REF>
+        </I-SIGNAL>
+        <I-SIGNAL>
+          <SHORT-NAME>state</SHORT-NAME>
+          <DATA-TYPE-POLICY>OVERRIDE</DATA-TYPE-POLICY>
+          <LENGTH>8</LENGTH>
+          <NETWORK-REPRESENTATION-PROPS>
+            <SW-DATA-DEF-PROPS-VARIANTS>
+              <SW-DATA-DEF-PROPS-CONDITIONAL>
+                <BASE-TYPE-REF DEST="SW-BASE-TYPE">/DataTypes/BaseTypes/uint8</BASE-TYPE-REF>
+              </SW-DATA-DEF-PROPS-CONDITIONAL>
+            </SW-DATA-DEF-PROPS-VARIANTS>
+          </NETWORK-REPRESENTATION-PROPS>
+          <SYSTEM-SIGNAL-REF DEST="SYSTEM-SIGNAL">/SystemSignals/state</SYSTEM-SIGNAL-REF>
+        </I-SIGNAL>
+      </ELEMENTS>
+    </AR-PACKAGE>
+    <AR-PACKAGE>
+      <SHORT-NAME>SystemSignals</SHORT-NAME>
+      <ELEMENTS>
+        <SYSTEM-SIGNAL>
+          <SHORT-NAME>torque</SHORT-NAME>
+          <PHYSICAL-PROPS>
+            <SW-DATA-DEF-PROPS-VARIANTS>
+              <SW-DATA-DEF-PROPS-CONDITIONAL>
+                <COMPU-METHOD-REF DEST="COMPU-METHOD">/DataTypes/CompuMethods/Torque</COMPU-METHOD-REF>
+                <UNIT-REF DEST="UNIT">/DataTypes/Units/Nm</UNIT-REF>
+              </SW-DATA-DEF-PROPS-CONDITIONAL>
+            </SW-DATA-DEF-PROPS-VARIANTS>
+          </PHYSICAL-PROPS>
+        </SYSTEM-SIGNAL>
+        <SYSTEM-SIGNAL>
+          <SHORT-NAME>rpm</SHORT-NAME>
+        </SYSTEM-SIGNAL>
+        <SYSTEM-SIGNAL>
+          <SHORT-NAME>state</SHORT-NAME>
+          <PHYSICAL-PROPS>
+            <SW-DATA-DEF-PROPS-VARIANTS>
+              <SW-DATA-DEF-PROPS-CONDITIONAL>
+                <COMPU-METHOD-REF DEST="COMPU-METHOD">/DataTypes/CompuMethods/PduState</COMPU-METHOD-REF>
+              </SW-DATA-DEF-PROPS-CONDITIONAL>
+            </SW-DATA-DEF-PROPS-VARIANTS>
+          </PHYSICAL-PROPS>
+        </SYSTEM-SIGNAL>
+      </ELEMENTS>
+    </AR-PACKAGE>
+    <AR-PACKAGE>
+      <SHORT-NAME>Transformers</SHORT-NAME>
+      <ELEMENTS>
+        <DATA-TRANSFORMATION-SET>
+          <SHORT-NAME>E2E</SHORT-NAME>
+          <TRANSFORMATION-TECHNOLOGYS>
+            <TRANSFORMATION-TECHNOLOGY>
+              <SHORT-NAME>E2E_P05</SHORT-NAME>
+              <BUFFER-PROPERTIES>
+                <HEADER-LENGTH>24</HEADER-LENGTH>
+                <IN-PLACE>true</IN-PLACE>
+              </BUFFER-PROPERTIES>
+              <HAS-INTERNAL-STATE>true</HAS-INTERNAL-STATE>
+              <NEEDS-ORIGINAL-DATA>false</NEEDS-ORIGINAL-DATA>
+              <PROTOCOL>E2E</PROTOCOL>
+              <TRANSFORMATION-DESCRIPTIONS>
+                <END-TO-END-TRANSFORMATION-DESCRIPTION>
+                  <MAX-DELTA-COUNTER>2</MAX-DELTA-COUNTER>
+                  <MAX-ERROR-STATE-INIT>0</MAX-ERROR-STATE-INIT>
+                  <MAX-ERROR-STATE-INVALID>0</MAX-ERROR-STATE-INVALID>
+                  <MAX-ERROR-STATE-VALID>0</MAX-ERROR-STATE-VALID>
+                  <MAX-NO-NEW-OR-REPEATED-DATA>2</MAX-NO-NEW-OR-REPEATED-DATA>
+                  <MIN-OK-STATE-INIT>1</MIN-OK-STATE-INIT>
+                  <MIN-OK-STATE-INVALID>1</MIN-OK-STATE-INVALID>
+                  <MIN-OK-STATE-VALID>1</MIN-OK-STATE-VALID>
+                  <OFFSET>0</OFFSET>
+                  <PROFILE-BEHAVIOR>R-4--2</PROFILE-BEHAVIOR>
+                  <PROFILE-NAME>PROFILE_05</PROFILE-NAME>
+                  <UPPER-HEADER-BITS-TO-SHIFT>0</UPPER-HEADER-BITS-TO-SHIFT>
+                  <WINDOW-SIZE-INIT>3</WINDOW-SIZE-INIT>
+                  <WINDOW-SIZE-INVALID>3</WINDOW-SIZE-INVALID>
+                  <WINDOW-SIZE-VALID>3</WINDOW-SIZE-VALID>
+                </END-TO-END-TRANSFORMATION-DESCRIPTION>
+              </TRANSFORMATION-DESCRIPTIONS>
+              <TRANSFORMER-CLASS>SAFETY</TRANSFORMER-CLASS>
+              <VERSION>1.0.0</VERSION>
+            </TRANSFORMATION-TECHNOLOGY>
+          </TRANSFORMATION-TECHNOLOGYS>
+        </DATA-TRANSFORMATION-SET>
       </ELEMENTS>
     </AR-PACKAGE>
   </AR-PACKAGES>
