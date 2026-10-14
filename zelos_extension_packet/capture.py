@@ -55,9 +55,10 @@ DEFAULT_STORED_FRAME_BYTES: int | None = None
 #: `ACTION_PREFIX`: one user-visible name for actions and catalog paths alike.
 PACKET_SOURCE_NAME = "Packet"
 
-#: Source of the ARXML-decoded SOME/IP events (`<Service>/<Element>`), as the
-#: package names it for a capture's helper.
+#: Sources of the ARXML-decoded SOME/IP events (`<Service>/<Element>`) and
+#: SoAd PDU events (`<PDU>`), as the package names them for a capture's helper.
 SOMEIP_SOURCE_NAME = "SOMEIP"
+PDU_SOURCE_NAME = "PDU"
 
 #: SOME/IP-SD's customary port and DoIP's (ISO 13400-2). `None` turns one off.
 DEFAULT_SOMEIP_SD_PORT = 30490
@@ -517,9 +518,9 @@ def remediation_text(
 #: :func:`make_trace_source`.
 _live_source: Any = None
 
-#: The live namespace's `SOMEIP` source, built on first use, for the same
-#: one-object reason.
-_live_signal_source: Any = None
+#: The live namespace's `SOMEIP` and `PDU` sources by name, built on first
+#: use, for the same one-object reason.
+_live_signal_sources: dict[str, Any] = {}
 
 
 def make_trace_source(namespace: Any = None, *, cached: bool = True) -> Any:
@@ -562,21 +563,20 @@ def make_trace_source(namespace: Any = None, *, cached: bool = True) -> Any:
     return _live_source
 
 
-def make_signal_source(namespace: Any = None, *, cached: bool = True) -> Any:
-    """The ``SOMEIP`` source the ARXML-decoded events go to, beside `make_trace_source`'s.
+def make_signal_source(name: str, namespace: Any = None, *, cached: bool = True) -> Any:
+    """Source `name` (``SOMEIP``, ``PDU``) of ARXML-decoded events, beside `make_trace_source`'s.
 
-    Same rules: one live object per process, a fresh one per conversion
-    namespace, and `cached` picks the type.
+    Same rules: one live object per name and process, a fresh one per
+    conversion namespace, and `cached` picks the type.
     """
     import zelos_sdk
 
     factory = zelos_sdk.TraceSourceCache if cached else zelos_sdk.TraceSource
     if namespace is not None:
-        return factory(SOMEIP_SOURCE_NAME, namespace=namespace)
-    global _live_signal_source
-    if _live_signal_source is None:
-        _live_signal_source = factory(SOMEIP_SOURCE_NAME, namespace=None)
-    return _live_signal_source
+        return factory(name, namespace=namespace)
+    if name not in _live_signal_sources:
+        _live_signal_sources[name] = factory(name, namespace=None)
+    return _live_signal_sources[name]
 
 
 @dataclass
@@ -619,7 +619,7 @@ class CaptureSession:
             "agent_url": agent_url(),
             "exclude_agent_addrs": list(self.endpoint.literals) if self.endpoint else None,
             "exclude_agent_port": self.endpoint.port if self.endpoint else None,
-            # The helper writes the ARXML-decoded rows to its own SOMEIP source.
+            # The helper writes the ARXML-decoded rows to its own SOMEIP and PDU sources.
             **self.autoeth.kwargs(),
         }
 
@@ -762,14 +762,18 @@ def make_decoder(
     genuinely disagree on - see `make_trace_source`.
     """
     source = make_trace_source(namespace, cached=cached)
-    # The SOMEIP source only when an ARXML decodes into it.
-    signals = make_signal_source(namespace, cached=cached) if autoeth.arxml else None
+
+    # The SOMEIP and PDU sources only when an ARXML decodes into them.
+    def signals(kind: str) -> Any:
+        return make_signal_source(kind, namespace, cached=cached) if autoeth.arxml else None
+
     return pkg.module().PacketDecoder(
         name=sanitize_capture_name(name),
         source=source,
         log_frames=log_frames,
         stored_frame_bytes=stored_frame_bytes,
-        signal_source=signals,
+        signal_source=signals(SOMEIP_SOURCE_NAME),
+        pdu_source=signals(PDU_SOURCE_NAME),
         **autoeth.kwargs(),
     )
 

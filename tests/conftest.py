@@ -211,6 +211,7 @@ class FakeDecoder:
         doip_port=13400,
         arxml=None,
         signal_source=None,
+        pdu_source=None,
     ):
         self.kwargs = {
             "name": name,
@@ -227,6 +228,7 @@ class FakeDecoder:
             "doip_port": doip_port,
             "arxml": arxml,
             "signal_source": signal_source,
+            "pdu_source": pdu_source,
         }
         self.flushed = False
         self.packets = 0

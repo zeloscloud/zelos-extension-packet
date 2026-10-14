@@ -85,6 +85,7 @@ class TestForwarding:
         decoder = make_decoder("x", namespace=object(), autoeth=AutoEthConfig())
         assert decoder.kwargs["arxml"] is None
         assert decoder.kwargs["signal_source"] is None
+        assert decoder.kwargs["pdu_source"] is None
 
 
 def _has_arxml() -> bool:
@@ -129,11 +130,18 @@ class TestRealPackage:
         frames.append(
             _udp_packet("10.0.0.2", "10.0.0.1", 40001, 13400, b"\x02\xfd\x00\x01\0\0\0\0")
         )
+        # one SoAd PDU, header id 0x101 on the ARXML's UDP 30600: DemoPdu, rpm 1500
+        pdu = struct.pack("<HBhHB", 0, 0, 0, 1500, 1)
+        soad = struct.pack(">II", 0x101, len(pdu)) + pdu
+        frames.append(_udp_packet("10.0.0.1", "10.0.0.2", 30600, 40001, soad))
         pcap = write_pcap(tmp_path / "demo.pcap", frames)
         out = tmp_path / "demo.trz"
         autoeth = parse_autoeth({"advanced": {"arxml": [str(ARXML)]}})
-        assert convert_pcap(pcap, out, autoeth=autoeth)["packets"] == 51
+        assert convert_pcap(pcap, out, autoeth=autoeth)["packets"] == 52
 
         speed = _column(out, "SOMEIP/DemoService/Status.speed")
         assert speed == pytest.approx([(1000 + 37 * i) * 0.01 for i in range(50)])
         assert _column(out, "Packet/demo/doip.payload_type") == [1]
+        assert _column(out, "PDU/DemoPdu.rpm") == [1500]
+        assert _column(out, "PDU/DemoPdu.header_id") == [0x101]
+        assert _column(out, "PDU/DemoPdu.src_port") == [30600]
