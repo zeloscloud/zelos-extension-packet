@@ -17,6 +17,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+from . import pkg
 from .capture import AutoEthConfig, ConfigError, make_decoder
 
 logger = logging.getLogger(__name__)
@@ -217,6 +218,10 @@ def convert_pcap(
     """Convert one pcap/pcapng, optionally gzip or zstd compressed, to
     `output_file`. No agent, no `zelos_sdk.init()`.
 
+    A compressed file that stops decoding part-way (cut short, corrupt) keeps
+    the trace of every packet before the damage and raises
+    `zelos_packet.CaptureTruncatedError` naming it.
+
     The format is decided by the file's magic bytes, not its name, so a
     misnamed capture still converts and a non-capture fails in the decoder.
 
@@ -255,7 +260,13 @@ def convert_pcap(
         # Ctrl-C at minute 25 of a long convert wants those 25 minutes.
         logger.error("Aborted; partial trace kept: %s", destination)
         raise
-    except BaseException:
+    except BaseException as exc:
+        if _is_truncated(exc):
+            # Every packet before the damage is already in the trace, the way a
+            # raw capture cut mid-record keeps its packets. Keep it, and still
+            # fail: the capture is incomplete.
+            logger.error("%s is incomplete; partial trace kept: %s", source.name, destination)
+            raise type(exc)(f"{exc}. Partial trace: {destination}") from exc
         # The writer creates the file before the first packet is decoded, so a
         # FAILED decode would otherwise leave a stub .trz that looks exactly
         # like a successful conversion of an empty capture. A partial trace
@@ -272,6 +283,13 @@ def convert_pcap(
         "output_file": str(destination),
         "packets": packets,
     }
+
+
+def _is_truncated(exc: BaseException) -> bool:
+    """zelos-packet raises `CaptureTruncatedError` for a compressed capture
+    that stopped decoding part-way, after flushing every packet before it."""
+    truncated = getattr(pkg.module(), "CaptureTruncatedError", None)
+    return truncated is not None and isinstance(exc, truncated)
 
 
 def convert_paths(

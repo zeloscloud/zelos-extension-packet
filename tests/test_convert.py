@@ -149,14 +149,16 @@ class TestRealPackage:
         assert (tmp_path / "sample.trz").exists()
 
     @needs_real_packet
-    def test_a_truncated_gzip_fails_rather_than_converting_short(
+    def test_a_truncated_gzip_keeps_its_trace_and_still_fails(
         self, sample_pcap: Path, tmp_path: Path
     ):
+        import zelos_packet
+
         packed = gzip.compress(sample_pcap.read_bytes())
         cut = tmp_path / "cut.pcap.gz"
-        cut.write_bytes(packed[: len(packed) - 12])
+        cut.write_bytes(packed[: len(packed) - 4])
 
-        with pytest.raises(RuntimeError, match="gzip"):
+        with pytest.raises(zelos_packet.CaptureTruncatedError, match="Partial trace"):
             convert_pcap(cut, tmp_path / "cut.trz")
 
-        assert not (tmp_path / "cut.trz").exists()
+        assert (tmp_path / "cut.trz").exists()
