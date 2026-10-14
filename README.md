@@ -7,6 +7,7 @@ Live network capture and pcap decode, in your Zelos workspace.
 - 🧭 **Drag into a packet panel** — Wireshark-style list, filter as you type
 - 📈 **Plot the capture itself** — packet and byte rates, kernel drops
 - 📁 **Open a pcap** — decode `.pcap`/`.pcapng` with no privileges and no NIC
+- 🚗 **Automotive Ethernet** — SOME/IP, SOME/IP-SD and DoIP, with SOME/IP payloads decoded by ARXML
 - ⏱️ **One timeline** — packets line up with your CAN and sensor data
 
 ## Granting capture rights
@@ -47,18 +48,43 @@ On Linux without `CAP_NET_RAW` the capture runs in the privileged helper process
 to the agent directly, so rows reach the tree the same way — `Packet/check_permissions`
 reports which backend a Start would use.
 
+## Automotive Ethernet
+
+On by default, on every capture, replay and conversion:
+
+| Protocol | Dissected on | Rows | One row per |
+| --- | --- | --- | --- |
+| SOME/IP-SD | UDP 30490 | `Packet/<capture>/someip_sd` | entry, with its endpoint and multicast options |
+| SOME/IP | ports SD offers, the ARXML names, or `advanced.someip.ports`; TP reassembled | `Packet/<capture>/someip` | message |
+| DoIP | UDP and TCP 13400 | `Packet/<capture>/doip` | message, with addresses and the UDS service id |
+| SoAd PDUs | sockets the ARXML names | `Packet/<capture>/pdu` | PDU, with its ARXML name |
+
+With `advanced.arxml`, SOME/IP payloads decode into the **SOMEIP** source and SoAd PDUs into the **PDU** source:
+
+- `SOMEIP/<Service>/<Event|Method|Field>`, one column per value, compu methods and units applied
+- one event per method and per field, requests and responses as rows; every row carries `message_type`, `session_id`, `client_id`, `return_code`, `instance_id` (from SD); fields add `method_id`
+- nested members join with `_` (`pos_x`); fixed arrays up to 16 flatten to `name_<i>`; longer and dynamic arrays are one bytes column plus `name_count`
+- SoAd PDUs: `PDU/<PDU>` by short-name (`PDU/DemoPdu`), contained and dynamic PDUs as `PDU/<PDU>/<PDU>`; columns `header_id`, `src_ip`, `src_port`, `dst_ip`, `dst_port`, then one per signal; an E2E-protected PDU adds `e2e_status` (`ok`, `wrong_crc`, `wrong_sequence`, `repeated`, `not_checked`), a secured one `secoc`; two SoAd PDUs with one short-name fail the load
+- reads SOME/IP service interface deployments, R4.2 and R19-11 onward
+- load the ECU extract for the ECUs on the tapped link, not a whole-vehicle file
+- with `advanced.arxml` or `advanced.someip.ports` and no `advanced.snaplen`, 1518 bytes are captured per packet, so SOME/IP payloads arrive whole
+
 ## Settings
 
 | Setting | Default | |
 | --- | --- | --- |
 | `interfaces[].interface` | – | NIC to capture |
 | `interfaces[].name` | interface name | Names this capture's branch in the tree |
-| `advanced.snaplen` | `512` | Bytes captured per packet, on every interface; raise for full payloads |
+| `advanced.snaplen` | `512`; `1518` with `arxml` or `someip.ports` | Bytes captured per packet, on every interface; raise for full payloads |
 | `advanced.promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
 | `advanced.buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
 | `advanced.replay_pcap` | – | Replay a file instead of capturing (original pace, stamped from now) |
 | `advanced.log_frames` | `true` | Store raw bytes in the `frame` column |
 | `advanced.stored_frame_bytes` | `null` | Bytes stored per packet; `null` stores everything captured |
+| `advanced.arxml` | `[]` | ARXML files for SOME/IP payload decode, one system |
+| `advanced.someip.sd_port` | `30490` | SOME/IP-SD port; `null` turns SD off |
+| `advanced.someip.ports` | `[]` | More SOME/IP ports, UDP or TCP |
+| `advanced.doip.port` | `13400` | DoIP port; `null` turns DoIP off |
 | `advanced.log_level` | `INFO` | |
 
 ## Actions
@@ -68,7 +94,7 @@ reports which backend a Start would use.
 | `Packet/list_interfaces` | NICs on the machine running the agent |
 | `Packet/check_permissions` | Can we capture, and through which backend? If not, the exact fix |
 | `Packet/capture_stats` | Per-interface counters and drop accounting |
-| `Packet/convert_pcap` | Convert a pcap to `.trz`. Runs without the extension started |
+| `Packet/convert_pcap` | Convert a pcap to `.trz`, optionally with ARXML. Runs without the extension started |
 
 ## CLI
 
@@ -78,7 +104,10 @@ uv run zelos-extension-packet check                 # probe permissions
 uv run zelos-extension-packet capture en0 en1       # capture, no app config
 uv run zelos-extension-packet replay capture.pcap   # stream a file to the agent, paced, stamped from now
 uv run zelos-extension-packet convert capture.pcap  # write capture.trz, no agent needed
+uv run zelos-extension-packet convert tap.pcapng --arxml ecu.arxml  # with SOME/IP payloads
 ```
+
+`capture`, `replay` and `convert` take `--arxml` (repeatable), `--someip-port` (repeatable), `--no-someip-sd` and `--no-doip`.
 
 ## Links
 

@@ -17,7 +17,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from .capture import ConfigError, make_decoder
+from .capture import AutoEthConfig, ConfigError, make_decoder
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +182,7 @@ def convert_pcap(
     *,
     log_frames: bool = True,
     progress: bool = False,
+    autoeth: AutoEthConfig = AutoEthConfig(),
 ) -> dict[str, Any]:
     """Convert one pcap/pcapng to `output_file`. No agent, no `zelos_sdk.init()`.
 
@@ -210,7 +211,11 @@ def convert_pcap(
             # `cached=False`: nothing reads a last value out of a file
             # conversion, and only a plain TraceSource takes the batch emit.
             decoder = make_decoder(
-                source.stem, log_frames=log_frames, namespace=namespace, cached=False
+                source.stem,
+                log_frames=log_frames,
+                namespace=namespace,
+                cached=False,
+                autoeth=autoeth,
             )
             with _packet_progress(decoder, source, enabled=progress):
                 packets = decoder.convert_file(str(source))
@@ -248,6 +253,7 @@ def convert_paths(
     log_frames: bool = True,
     overwrite: bool = False,
     progress: bool = False,
+    autoeth: AutoEthConfig = AutoEthConfig(),
 ) -> list[dict[str, Any]]:
     """Convert every input to its own `.trz`. One input file, one output file.
 
@@ -275,7 +281,13 @@ def convert_paths(
                     path, output, output_dir=output_dir, overwrite=overwrite
                 )
                 results.append(
-                    convert_pcap(path, destination, log_frames=log_frames, progress=progress)
+                    convert_pcap(
+                        path,
+                        destination,
+                        log_frames=log_frames,
+                        progress=progress,
+                        autoeth=autoeth,
+                    )
                 )
             except Exception as exc:
                 # Any failure, deliberately: this is the isolation boundary that

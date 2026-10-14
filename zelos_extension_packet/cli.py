@@ -20,10 +20,12 @@ from .agent_filter import AMPLIFICATION_WARNING, AgentEndpoint, is_loopback_inte
 from .agent_filter import resolve_agent_endpoint as _resolve_agent_endpoint
 from .capture import (
     DEFAULT_STORED_FRAME_BYTES,
+    AutoEthConfig,
     CaptureDeniedError,
     CaptureSession,
     ConfigError,
     InterfaceConfig,
+    parse_autoeth,
     parse_interfaces,
     probe_permissions,
     replay_pcap,
@@ -170,6 +172,10 @@ def run_app_mode(file: Path | None = None) -> None:
     # captured byte" and must survive, where `or` would fold it back to 256.
     stored_frame_bytes = advanced.get("stored_frame_bytes", DEFAULT_STORED_FRAME_BYTES)
     replay = str(advanced.get("replay_pcap") or "").strip()
+    try:
+        autoeth = parse_autoeth(config)
+    except ConfigError as exc:
+        _fail(str(exc))
 
     interfaces: list[InterfaceConfig] = []
     if not replay:
@@ -202,6 +208,7 @@ def run_app_mode(file: Path | None = None) -> None:
                 "name": Path(replay).stem,
                 "log_frames": log_frames,
                 "stored_frame_bytes": stored_frame_bytes,
+                "autoeth": autoeth,
             }
             if output_file:
                 with zelos_sdk.TraceWriter(str(output_file)):
@@ -230,6 +237,7 @@ def run_app_mode(file: Path | None = None) -> None:
             endpoint=endpoint,
             log_frames=log_frames,
             stored_frame_bytes=stored_frame_bytes,
+            autoeth=autoeth,
         )
         for cfg in interfaces
     ]
@@ -257,6 +265,46 @@ def run_app_mode(file: Path | None = None) -> None:
 
 
 # ─── Subcommands ────────────────────────────────────────────────────────────
+
+
+def _autoeth_options(command):
+    """`--arxml`, `--someip-port`, `--no-someip-sd`, `--no-doip`: the app's
+    Advanced SOME/IP, DoIP and ARXML settings."""
+    for option in reversed(
+        [
+            click.option(
+                "--arxml",
+                multiple=True,
+                type=click.Path(path_type=Path),
+                help="AUTOSAR ARXML file to decode SOME/IP payloads by. Repeatable: one system.",
+            ),
+            click.option(
+                "--someip-port",
+                multiple=True,
+                type=click.IntRange(1, 65535),
+                help="Another SOME/IP port, beyond those SD offers and the ARXML name. Repeatable.",
+            ),
+            click.option("--no-someip-sd", is_flag=True, help="Do not dissect SOME/IP-SD (30490)."),
+            click.option("--no-doip", is_flag=True, help="Do not dissect DoIP (13400)."),
+        ]
+    ):
+        command = option(command)
+    return command
+
+
+def _autoeth(
+    arxml: tuple[Path, ...], someip_port: tuple[int, ...], no_someip_sd: bool, no_doip: bool
+) -> AutoEthConfig:
+    """The CLI flags through the app config's parser, so paths resolve alike."""
+    advanced: dict = {"arxml": [str(a) for a in arxml], "someip": {"ports": list(someip_port)}}
+    if no_someip_sd:
+        advanced["someip"]["sd_port"] = None
+    if no_doip:
+        advanced["doip"] = {"port": None}
+    try:
+        return parse_autoeth({"advanced": advanced})
+    except ConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 @click.command("interfaces")
@@ -291,7 +339,12 @@ def check_cmd(interface: str) -> None:
 
 @click.command("capture")
 @click.argument("interface", nargs=-1, required=True)
-@click.option("--snaplen", type=int, default=512, show_default=True, help="Bytes per packet.")
+@click.option(
+    "--snaplen",
+    type=int,
+    default=None,
+    help="Bytes per packet. [default: 512; 1518 with --arxml or --someip-port]",
+)
 @click.option("--promiscuous", is_flag=True, help="Capture frames not addressed to this host.")
 @click.option(
     "--buffer-size", type=int, default=8 * 1024 * 1024, show_default=True, help="Kernel buffer."
@@ -305,13 +358,18 @@ def check_cmd(interface: str) -> None:
     flag_value=".",
     help="Record trace to .trz (defaults to a UTC-stamped name).",
 )
+@_autoeth_options
 def capture_cmd(
     interface: tuple[str, ...],
-    snaplen: int,
+    snaplen: int | None,
     promiscuous: bool,
     buffer_size: int,
     no_frames: bool,
     file: Path | None,
+    arxml: tuple[Path, ...],
+    someip_port: tuple[int, ...],
+    no_someip_sd: bool,
+    no_doip: bool,
 ) -> None:
     """Capture one or more INTERFACEs without app configuration.
 
@@ -333,11 +391,15 @@ def capture_cmd(
                     "snaplen": snaplen,
                     "promiscuous": promiscuous,
                     "buffer_size": buffer_size,
+                    # an unset --snaplen follows these, as the app's settings
+                    "arxml": [str(a) for a in arxml],
+                    "someip": {"ports": list(someip_port)},
                 },
             }
         )
     except ConfigError as exc:
         raise click.ClickException(str(exc)) from exc
+    autoeth = _autoeth(arxml, someip_port, no_someip_sd, no_doip)
 
     packet_actions.register_actions(zelos_sdk.actions_registry)
     zelos_sdk.init(name=SOURCE_PREFIX, log_level="info", actions=True)
@@ -352,7 +414,10 @@ def capture_cmd(
         raise click.ClickException(str(exc)) from exc
     logger.info("Excluding agent traffic: %s", endpoint.describe())
 
-    sessions = [CaptureSession(cfg, endpoint=endpoint, log_frames=not no_frames) for cfg in configs]
+    sessions = [
+        CaptureSession(cfg, endpoint=endpoint, log_frames=not no_frames, autoeth=autoeth)
+        for cfg in configs
+    ]
     for session in sessions:
         packet_actions.CAPTURES[session.name] = session
 
@@ -390,8 +455,19 @@ def capture_cmd(
     flag_value=".",
     help="Record trace to .trz (defaults to a UTC-stamped name).",
 )
-def replay_cmd(pcap: Path, name: str, no_frames: bool, file: Path | None) -> None:
+@_autoeth_options
+def replay_cmd(
+    pcap: Path,
+    name: str,
+    no_frames: bool,
+    file: Path | None,
+    arxml: tuple[Path, ...],
+    someip_port: tuple[int, ...],
+    no_someip_sd: bool,
+    no_doip: bool,
+) -> None:
     """Decode a PCAP file into a trace. Needs no capture privileges."""
+    autoeth = _autoeth(arxml, someip_port, no_someip_sd, no_doip)
     zelos_sdk.init(name=SOURCE_PREFIX, log_level="info")
     _attach_trace_logging()
     if not pkg.available():
@@ -404,9 +480,9 @@ def replay_cmd(pcap: Path, name: str, no_frames: bool, file: Path | None) -> Non
         if output_file:
             logger.info("Recording trace to: %s", output_file)
             with zelos_sdk.TraceWriter(str(output_file)):
-                replay_pcap(pcap, name=capture_name, log_frames=not no_frames)
+                replay_pcap(pcap, name=capture_name, log_frames=not no_frames, autoeth=autoeth)
         else:
-            replay_pcap(pcap, name=capture_name, log_frames=not no_frames)
+            replay_pcap(pcap, name=capture_name, log_frames=not no_frames, autoeth=autoeth)
     except KeyboardInterrupt:
         logger.warning("Replay of %s stopped before it finished", pcap)
 
@@ -430,6 +506,7 @@ def replay_cmd(pcap: Path, name: str, no_frames: bool, file: Path | None) -> Non
 @click.option("-f", "--force", is_flag=True, help="Overwrite outputs that already exist.")
 @click.option("--no-frames", is_flag=True, help="Do not populate the `frame` Binary column.")
 @click.option("--no-progress", is_flag=True, help="Disable progress bars.")
+@_autoeth_options
 def convert_cmd(
     inputs: tuple[Path, ...],
     output: Path | None,
@@ -437,6 +514,10 @@ def convert_cmd(
     force: bool,
     no_frames: bool,
     no_progress: bool,
+    arxml: tuple[Path, ...],
+    someip_port: tuple[int, ...],
+    no_someip_sd: bool,
+    no_doip: bool,
 ) -> None:
     """Convert PCAP files to Zelos traces (.trz).
 
@@ -452,9 +533,12 @@ def convert_cmd(
       zelos-extension-packet convert *.pcapng --output-dir traces/
 
       zelos-extension-packet convert ./captures -f --no-frames
+
+      zelos-extension-packet convert tap.pcapng --arxml ecu-extract.arxml
     """
     if not pkg.available():
         raise click.ClickException(pkg.skip_reason())
+    autoeth = _autoeth(arxml, someip_port, no_someip_sd, no_doip)
 
     try:
         results = convert_paths(
@@ -464,6 +548,7 @@ def convert_cmd(
             log_frames=not no_frames,
             overwrite=force,
             progress=not no_progress,
+            autoeth=autoeth,
         )
     except ValueError as exc:  # ConfigError is a ValueError
         raise click.ClickException(str(exc)) from exc
