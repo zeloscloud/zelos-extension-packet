@@ -169,7 +169,8 @@ def check_permissions(interface: str = "") -> dict[str, Any]:
 
 @action(
     "Convert Pcap",
-    "Convert a .pcap/.pcapng file to a Zelos trace (.trz). Runs without the "
+    "Convert a .pcap/.pcapng file, optionally gzip or zstd compressed, to a Zelos "
+    "trace (.trz). Runs without the "
     "extension running - no capture handle, no interface, no privileges, and no "
     "agent: the trace is written straight to disk.",
     # Decoding is I/O bound over files that can reach multi-GB. 30 minutes is a
@@ -183,13 +184,13 @@ def check_permissions(interface: str = "") -> dict[str, Any]:
 @action.text(
     "input_file",
     title="Capture file",
-    description="Source .pcap or .pcapng",
+    description="Source .pcap or .pcapng, optionally gzip or zstd compressed",
     widget="file_path_picker",
 )
 @action.text(
     "output_file",
     title="Output (.trz)",
-    description="Defaults to the input file with a .trz suffix",
+    description="Defaults to the input's name with a .trz suffix",
     required=False,
     default="",
     widget="file_path_picker",
