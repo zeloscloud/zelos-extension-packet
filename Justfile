@@ -29,7 +29,7 @@ ci-install:
 # built. Every test that needs the real package skips with a clear reason.
 install-nolive:
     uv venv --python 3.11
-    uv pip install pytest jsonschema ruff "zelos-sdk>=0.0.13a0" "rich-click>=1.8.0"
+    uv pip install pytest jsonschema ruff "zelos-sdk>=0.0.13a1" "rich-click>=1.8.0"
 
 # Format code
 format:
