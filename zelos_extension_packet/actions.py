@@ -84,6 +84,7 @@ def _auto_config(interfaces: list[dict[str, Any]]) -> dict[str, Any]:
     "A configuration that captures on every interface that is up and not loopback, "
     "for the config form's Auto-configure button. Review it, then save and start.",
     standalone=True,
+    hidden=True,
 )
 def auto_config() -> dict[str, Any]:
     """The app's auto-configure contract: `config` replaces the form's keys."""
@@ -97,6 +98,7 @@ def auto_config() -> dict[str, Any]:
     # Enumerating NICs opens no capture handle and needs no privileges, and the
     # config form wants the list before the extension has ever run.
     standalone=True,
+    hidden=True,
 )
 def list_interfaces() -> dict[str, Any]:
     """The app's `action-choices` contract: `choices` in the order to show."""

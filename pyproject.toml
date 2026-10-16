@@ -17,12 +17,13 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    # The capture path needs the SDK's evt_flush ABI slot, first published in
-    # 0.0.12a1. The prerelease marker has to appear HERE, on a direct
-    # dependency: uv enables prereleases per package only when a direct
-    # requirement names one, so inheriting the same floor through zelos-packet
-    # leaves `uv sync` unsatisfiable in the extension host.
-    "zelos-sdk>=0.0.12a1",
+    # 0.0.13a1 has `hidden=` actions (older SDKs swallow the
+    # keyword and still list the action); it also carries the evt_flush ABI
+    # slot the capture path needs. The prerelease marker has to appear HERE,
+    # on a direct dependency: uv enables prereleases per package only when a
+    # direct requirement names one, so inheriting the same floor through
+    # zelos-packet leaves `uv sync` unsatisfiable in the extension host.
+    "zelos-sdk>=0.0.13a1",
     "rich-click>=1.8.0",
     # Rust-cored capture + decode. Live capture is Linux (AF_PACKET) and macOS
     # (/dev/bpf) only in this release; the decode path is portable, so there is
