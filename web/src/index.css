@@ -1,0 +1,74 @@
+/* The SDK writes the host's theme tokens (--background, --foreground, --border, ...) onto the document
+   root, so the panel matches Zelos in light and dark mode. */
+
+* {
+  margin: 0;
+  box-sizing: border-box;
+  border-color: hsl(var(--border));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* A column, so the panel takes whatever height is left (the SDK's development banner sits above it). */
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+#root > * {
+  flex: none;
+}
+
+#root > :last-child {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 14px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.muted {
+  color: hsl(var(--muted-foreground));
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

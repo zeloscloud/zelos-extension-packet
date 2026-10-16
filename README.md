@@ -4,7 +4,7 @@ Live network capture and pcap decode, in your Zelos workspace.
 
 - 📡 **Capture any NIC** — Linux and macOS, several interfaces at once
 - 🔍 **Every packet as a row** — addresses, ports, protocol, flags, and the raw bytes
-- 🧭 **Drag into a packet panel** — Wireshark-style list, filter as you type
+- 🧭 **Drag into a Packet List** — Wireshark-style list, filter as you type
 - 📈 **Plot the capture itself** — packet and byte rates, kernel drops
 - 📁 **Open a pcap** — decode `.pcap`/`.pcapng` with no privileges and no NIC
 - ⏱️ **One timeline** — packets line up with your CAN and sensor data
@@ -23,7 +23,17 @@ sudo /path/to/python -m zelos_packet install-helper
 - ⚠️ **macOS** `access_bpf` members can also **send** arbitrary frames: a bpf device is opened read-write and capture needs the write side
 - 🔁 Log out and back in, then restart the agent — a session's groups are fixed at login
 - ✅ `python -m zelos_packet status` says whether capture would work right now
-- 🪟 Windows has no live capture this release — use `replay_pcap`
+- 🪟 Windows and Intel Macs have no capture agent this release — see [Platforms](#platforms)
+
+## Platforms
+
+| | Linux x86_64 | Linux aarch64 | macOS Apple silicon | macOS Intel | Windows |
+| --- | --- | --- | --- | --- | --- |
+| Packet List panel (recorded traces) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Capture agent (live capture, pcap replay, `convert_pcap`) | ✅ | ✅ | ✅ | – | – |
+
+The agent runs on the platforms `zelos-packet` ships native wheels for. Everywhere else the panel still
+opens any trace that holds packets.
 
 ## Quick start
 
@@ -41,11 +51,28 @@ zelos extensions start packet --config '{"replay_pcap": "capture.pcapng"}'
 ```
 
 Captures appear in the tree under **Packet → your interface → packets**. Drag that node into
-the workspace for a packet panel; drag **stats** for a plot.
+the workspace for a Packet List; drag **stats** for a plot.
 
 On Linux without `CAP_NET_RAW` the capture runs in the privileged helper process and streams
 to the agent directly, so rows reach the tree the same way — `Packet/check_permissions`
 reports which backend a Start would use.
+
+## Packet List panel
+
+The extension ships its own panel, the **Packet List** (Zelos 26.0.10 or later). Drag a capture's
+node from the tree onto a layout and the panel opens with it bound; its `stats` ride along.
+
+- 📋 **Wireshark's packet list** — No., Time, Source, Destination, Protocol, Length, Info; Interface, VLAN
+  and Fragment Offset are opt-in, and Interface turns on by itself when two captures share the panel
+- 🔎 **Two filters that compose** — the search box matches text (`*retry?of*` globs work), and the
+  display filter takes `tcp.port == 443 && ip.addr == 10.0.0.5`, `udp or arp`, `info contains dns`
+- 🧬 **Click a row for its frame** — the dissection tree and the hex dump, selection linked both ways,
+  fetched for that one packet
+- 📍 **Right-click a cell** — Set cursor here, Copy value, Copy row as JSON (all 31 fields), View frame bytes
+- 📊 **Status strip** — captured, dropped and truncated counts from the capture's own counters, plus rates while live
+- ⬇️ **Follows the live tail** — scroll back and the list holds still; **Jump to latest** resumes
+
+Its options (the opt-in columns, font size, auto-scroll, buffer size) are in the panel's Edit sheet.
 
 ## Settings
 

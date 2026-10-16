@@ -313,7 +313,7 @@ def capture_cmd(
     no_frames: bool,
     file: Path | None,
 ) -> None:
-    """Capture one or more INTERFACEs without app configuration.
+    """Capture one or more interfaces without app configuration.
 
     Examples:
 
