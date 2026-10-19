@@ -80,7 +80,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * there. AG Grid's `setFilterModel` is unguarded, so the shape is checked one level deep first; `{}` (every
  * filter cleared) is a real state and round-trips.
  */
-function resolveFilterModel(options: Record<string, unknown> | null | undefined): FilterModel | undefined {
+export function resolveFilterModel(options: Record<string, unknown> | null | undefined): FilterModel | undefined {
   const grid = options?.grid;
   if (!isPlainObject(grid)) return undefined;
   const model = grid.filterModel;

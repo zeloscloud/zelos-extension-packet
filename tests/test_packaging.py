@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
@@ -34,6 +35,13 @@ def test_panel_files_are_packaged(panel: dict) -> None:
         )
         top = relative.split("/", 1)[0]
         assert top in MANIFEST["package"]["paths"], f"{relative} is outside [package] paths"
+
+
+def test_saved_layouts_find_the_packet_list() -> None:
+    """Layouts saved by Zelos 26.0.9 and earlier refer to this panel by these ids."""
+    owner_repo = urlparse(MANIFEST["repository"]).path.strip("/")
+    assert owner_repo.lower().replace("/", ".", 1) == "zeloscloud.zelos-extension-packet"
+    assert "packet-list" in {panel["id"] for panel in MANIFEST["app"]["panels"]}
 
 
 @pytest.mark.parametrize("key", IMPLICIT_KEYS)
