@@ -38,6 +38,9 @@ from .agent_filter import AgentEndpoint, ConfigError, agent_url
 logger = logging.getLogger(__name__)
 
 DEFAULT_SNAPLEN = 512
+#: Snaplen when ARXML or SOME/IP ports are configured and none is set: a full
+#: Ethernet frame, so SOME/IP payloads past ~450 bytes arrive whole.
+AUTOETH_SNAPLEN = 1518
 DEFAULT_BUFFER_SIZE = 8 * 1024 * 1024
 DEFAULT_PROMISCUOUS = False
 #: Bytes of each packet stored in the `frame` column. `None` stores every
@@ -51,6 +54,15 @@ DEFAULT_STORED_FRAME_BYTES: int | None = None
 #: their event-name prefix, not by source; see the module docstring. Equals
 #: `ACTION_PREFIX`: one user-visible name for actions and catalog paths alike.
 PACKET_SOURCE_NAME = "Packet"
+
+#: Sources of the ARXML-decoded SOME/IP events (`<Service>/<Element>`) and
+#: SoAd PDU events (`<PDU>`), as the package names them for a capture's helper.
+SOMEIP_SOURCE_NAME = "SOMEIP"
+PDU_SOURCE_NAME = "PDU"
+
+#: SOME/IP-SD's customary port and DoIP's (ISO 13400-2). `None` turns one off.
+DEFAULT_SOMEIP_SD_PORT = 30490
+DEFAULT_DOIP_PORT = 13400
 
 #: Catalog path separators. A VLAN interface is literally named `eth0.100`, so
 #: this is not hypothetical: an unsanitized name breaks `agent.latest` lookups.
@@ -91,6 +103,20 @@ METRICS_FIELDS = (
     "flush_errors",
     "drain_abandoned",
     "emit_stall_ms",
+    "someip_messages",
+    "someip_sd_entries",
+    "doip_messages",
+    "soad_pdus",
+    "someip_tp_completed",
+    "someip_tp_dropped",
+    "someip_unknown",
+    "someip_malformed",
+    "someip_signal_rows",
+    "pdu_signal_rows",
+    "pdu_decode_errors",
+    "autoeth_malformed",
+    "autoeth_truncated",
+    "autoeth_resyncs",
 )
 
 
@@ -119,6 +145,55 @@ class InterfaceConfig:
     buffer_size: int = DEFAULT_BUFFER_SIZE
 
 
+@dataclass(frozen=True)
+class AutoEthConfig:
+    """SOME/IP, SOME/IP-SD and DoIP dissection, and the ARXML (absolute paths)
+    SOME/IP payloads decode by. Shared by capture, replay and conversion."""
+
+    sd_port: int | None = DEFAULT_SOMEIP_SD_PORT
+    someip_ports: tuple[int, ...] = ()
+    doip_port: int | None = DEFAULT_DOIP_PORT
+    arxml: tuple[str, ...] = ()
+
+    def kwargs(self) -> dict[str, Any]:
+        """The native keyword arguments, `PacketCapture` and `PacketDecoder` alike."""
+        return {
+            "someip_sd_port": self.sd_port,
+            "someip_ports": list(self.someip_ports) or None,
+            "doip_port": self.doip_port,
+            "arxml": list(self.arxml) or None,
+        }
+
+
+def resolve_arxml(raw: str | Path) -> Path:
+    """An ARXML path, `~` expanded and relative to the working directory.
+
+    Raises:
+        ConfigError: the file does not exist.
+    """
+    path = Path(raw).expanduser().resolve()
+    if not path.is_file():
+        raise ConfigError(f"ARXML file not found: {path}")
+    return path
+
+
+def parse_autoeth(config: dict) -> AutoEthConfig:
+    """`advanced.someip`, `advanced.doip` and `advanced.arxml` as an :class:`AutoEthConfig`.
+
+    `.get` with a default, not `or`: an explicit null port turns that dissector
+    off and must survive.
+    """
+    advanced = config.get("advanced") or {}
+    someip = advanced.get("someip") or {}
+    doip = advanced.get("doip") or {}
+    return AutoEthConfig(
+        sd_port=someip.get("sd_port", DEFAULT_SOMEIP_SD_PORT),
+        someip_ports=tuple(int(p) for p in someip.get("ports") or []),
+        doip_port=doip.get("port", DEFAULT_DOIP_PORT),
+        arxml=tuple(str(resolve_arxml(p)) for p in advanced.get("arxml") or [] if str(p).strip()),
+    )
+
+
 def sanitize_capture_name(raw: str) -> str:
     """Make `raw` safe as a capture's event-name prefix.
 
@@ -144,7 +219,9 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
 
     `advanced.snaplen`, `advanced.promiscuous` and `advanced.buffer_size` are
     fanned out to every interface: one byte budget for the whole capture, which
-    is how the CLI's single `--snaplen` has always behaved.
+    is how the CLI's single `--snaplen` has always behaved. An unset snaplen is
+    `AUTOETH_SNAPLEN` with `advanced.arxml` or `advanced.someip.ports`, else
+    `DEFAULT_SNAPLEN`.
 
     Defaults are applied here as well as in the JSON Schema, so CLI callers -
     which never go through `load_config` - get identical behaviour.
@@ -161,7 +238,9 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
         raise ConfigError("'interfaces' must be a list of capture configurations")
 
     advanced = config.get("advanced") or {}
-    snaplen = int(advanced.get("snaplen") or DEFAULT_SNAPLEN)
+    arxml = any(str(a).strip() for a in advanced.get("arxml") or [])
+    payloads = arxml or (advanced.get("someip") or {}).get("ports")
+    snaplen = int(advanced.get("snaplen") or (AUTOETH_SNAPLEN if payloads else DEFAULT_SNAPLEN))
     promiscuous = bool(advanced.get("promiscuous", DEFAULT_PROMISCUOUS))
     buffer_size = int(advanced.get("buffer_size") or DEFAULT_BUFFER_SIZE)
 
@@ -439,6 +518,10 @@ def remediation_text(
 #: :func:`make_trace_source`.
 _live_source: Any = None
 
+#: The live namespace's `SOMEIP` and `PDU` sources by name, built on first
+#: use, for the same one-object reason.
+_live_signal_sources: dict[str, Any] = {}
+
 
 def make_trace_source(namespace: Any = None, *, cached: bool = True) -> Any:
     """The ``packet`` source every capture in this process writes into.
@@ -480,6 +563,22 @@ def make_trace_source(namespace: Any = None, *, cached: bool = True) -> Any:
     return _live_source
 
 
+def make_signal_source(name: str, namespace: Any = None, *, cached: bool = True) -> Any:
+    """Source `name` (``SOMEIP``, ``PDU``) of ARXML-decoded events, beside `make_trace_source`'s.
+
+    Same rules: one live object per name and process, a fresh one per
+    conversion namespace, and `cached` picks the type.
+    """
+    import zelos_sdk
+
+    factory = zelos_sdk.TraceSourceCache if cached else zelos_sdk.TraceSource
+    if namespace is not None:
+        return factory(name, namespace=namespace)
+    if name not in _live_signal_sources:
+        _live_signal_sources[name] = factory(name, namespace=None)
+    return _live_signal_sources[name]
+
+
 @dataclass
 class CaptureSession:
     """Lifecycle wrapper around one ``zelos_packet.PacketCapture``."""
@@ -488,6 +587,7 @@ class CaptureSession:
     endpoint: AgentEndpoint | None = None
     log_frames: bool = True
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES
+    autoeth: AutoEthConfig = AutoEthConfig()
     _capture: Any = field(default=None, init=False, repr=False)
     _source: Any = field(default=None, init=False, repr=False)
 
@@ -519,6 +619,8 @@ class CaptureSession:
             "agent_url": agent_url(),
             "exclude_agent_addrs": list(self.endpoint.literals) if self.endpoint else None,
             "exclude_agent_port": self.endpoint.port if self.endpoint else None,
+            # The helper writes the ARXML-decoded rows to its own SOMEIP and PDU sources.
+            **self.autoeth.kwargs(),
         }
 
     def start(self) -> None:
@@ -646,6 +748,7 @@ def make_decoder(
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
     namespace: Any = None,
     cached: bool = True,
+    autoeth: AutoEthConfig = AutoEthConfig(),
 ) -> Any:
     """A ``PacketDecoder`` emitting into `namespace` under a sanitized `name`.
 
@@ -659,11 +762,19 @@ def make_decoder(
     genuinely disagree on - see `make_trace_source`.
     """
     source = make_trace_source(namespace, cached=cached)
+
+    # The SOMEIP and PDU sources only when an ARXML decodes into them.
+    def signals(kind: str) -> Any:
+        return make_signal_source(kind, namespace, cached=cached) if autoeth.arxml else None
+
     return pkg.module().PacketDecoder(
         name=sanitize_capture_name(name),
         source=source,
         log_frames=log_frames,
         stored_frame_bytes=stored_frame_bytes,
+        signal_source=signals(SOMEIP_SOURCE_NAME),
+        pdu_source=signals(PDU_SOURCE_NAME),
+        **autoeth.kwargs(),
     )
 
 
@@ -673,6 +784,7 @@ def replay_pcap(
     name: str = "pcap",
     log_frames: bool = True,
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
+    autoeth: AutoEthConfig = AutoEthConfig(),
 ) -> dict[str, Any]:
     """Decode a pcap/pcapng into the *live* trace namespace. No privileges required.
 
@@ -690,7 +802,9 @@ def replay_pcap(
     logger.info(
         "Replaying %s into %s.%s/packets", pcap, PACKET_SOURCE_NAME, sanitize_capture_name(name)
     )
-    decoder = make_decoder(name, log_frames=log_frames, stored_frame_bytes=stored_frame_bytes)
+    decoder = make_decoder(
+        name, log_frames=log_frames, stored_frame_bytes=stored_frame_bytes, autoeth=autoeth
+    )
     count = decoder.convert_file(str(pcap), realtime=True)
     decoder.flush()
     logger.info("Replay of %s complete: %d packets", pcap.name, count)

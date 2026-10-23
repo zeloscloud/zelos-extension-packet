@@ -41,7 +41,7 @@ class TestSchemaDefaults:
         advanced = config["advanced"]
         assert advanced["log_frames"] is True
         assert advanced["log_level"] == "INFO"
-        assert advanced["snaplen"] == 512
+        assert "snaplen" not in advanced  # unset: `parse_interfaces` picks it
         assert advanced["promiscuous"] is False
         assert advanced["buffer_size"] == 8 * 1024 * 1024
         # `stored_frame_bytes` defaults to null, which the schema default-filler
