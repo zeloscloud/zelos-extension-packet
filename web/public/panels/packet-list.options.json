@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "title": "Packet List",
+  "properties": {
+    "showInterface": {
+      "type": "boolean",
+      "title": "Show interface",
+      "description": "Always display the capture interface each packet arrived on",
+      "default": false
+    },
+    "showVlan": {
+      "type": "boolean",
+      "title": "Show VLAN",
+      "description": "Display the 802.1Q VLAN id",
+      "default": false
+    },
+    "showFragOffset": {
+      "type": "boolean",
+      "title": "Show fragment offset",
+      "description": "Display the IP fragment offset",
+      "default": false
+    },
+    "fontSize": {
+      "type": "integer",
+      "title": "Font size",
+      "description": "Font size in pixels",
+      "minimum": 6,
+      "maximum": 128,
+      "default": 14,
+      "ui:options": {
+        "unit": "px"
+      }
+    },
+    "autoScroll": {
+      "type": "boolean",
+      "title": "Auto-scroll",
+      "description": "Keep the newest row in view as rows arrive.",
+      "default": true
+    },
+    "bufferSize": {
+      "type": "integer",
+      "title": "Buffer size",
+      "description": "Max number of rows to retain.",
+      "minimum": 100,
+      "maximum": 1000000,
+      "default": 10000
+    }
+  }
+}
