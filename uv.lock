@@ -566,22 +566,22 @@ requires-dist = [
     { name = "rich-click", specifier = ">=1.8.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14.2" },
     { name = "tqdm", marker = "extra == 'cli'", specifier = ">=4.0.0" },
-    { name = "zelos-packet", specifier = "==0.0.2" },
+    { name = "zelos-packet", specifier = "==0.0.3" },
     { name = "zelos-sdk", specifier = ">=0.0.13a1" },
 ]
 provides-extras = ["cli", "dev"]
 
 [[package]]
 name = "zelos-packet"
-version = "0.0.2"
+version = "0.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "zelos-sdk" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/53/424d1fb1220e4ffc5ff9b7f93f7b166e048d9bfe761773b9f66fffdd5fa8/zelos_packet-0.0.2-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:3806477574d34d0fbaf7944d3b824076cee484eb45e263b9c6d32048d01273e8", size = 3863821, upload-time = "2026-09-29T20:58:37.06Z" },
-    { url = "https://files.pythonhosted.org/packages/76/15/8351e991d2526f5c7a2c01db0da7d432d1e72f137793404c6e2cd9daaf02/zelos_packet-0.0.2-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:73fd4642b038dbaa26b3e13706c5cf442b82c4584c182cb3a6fb60b8ab43858a", size = 4410074, upload-time = "2026-09-29T20:58:40.756Z" },
-    { url = "https://files.pythonhosted.org/packages/1d/fa/d397a60fa47c8ba48cbcc7ea2147dd88519aaba347a9f7ef41b393bde10a/zelos_packet-0.0.2-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:712db15eb444f1ad960a42f4b27e4c2ba653df40062482890d7d3b269b22a6f8", size = 5180514, upload-time = "2026-09-29T20:58:43.182Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/7d/a8d8713fb37f97d3eb171d8ad06db41f0f40da45979bb82e603c37c4bf91/zelos_packet-0.0.3-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:cd33cb8f3fd95bc7522c486bf3c00373de6223bf05670299c1463c35ae5aee7d", size = 5764060, upload-time = "2026-10-23T02:51:19.619Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/42/5be25f0bce1152ae7b3a5eccdc88512e4fc7fd5867658513a966a9183fed/zelos_packet-0.0.3-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:96d1c648b650b71a6485f02664ae84058590f9e7717bbe6db596cc208f056179", size = 6751938, upload-time = "2026-10-23T02:51:21.529Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/63/535d1bebdc2573ee0c57acf736563848c6a6b8a8d5941aaadd76af9948fa/zelos_packet-0.0.3-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:4bfabc01e48b20418e49eba60d97f245b67f2f8eff0fdeea8fb8e4d0aad38d7e", size = 7617658, upload-time = "2026-10-23T02:51:23.28Z" },
 ]
 
 [[package]]
