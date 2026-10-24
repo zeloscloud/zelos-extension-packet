@@ -85,6 +85,7 @@ def _auto_config(interfaces: list[dict[str, Any]]) -> dict[str, Any]:
     "for the config form's Auto-configure button. Review it, then save and start.",
     standalone=True,
     hidden=True,
+    read_only=True,
 )
 def auto_config() -> dict[str, Any]:
     """The app's auto-configure contract: `config` replaces the form's keys."""
@@ -99,6 +100,7 @@ def auto_config() -> dict[str, Any]:
     # config form wants the list before the extension has ever run.
     standalone=True,
     hidden=True,
+    read_only=True,
 )
 def list_interfaces() -> dict[str, Any]:
     """The app's `action-choices` contract: `choices` in the order to show."""
@@ -118,6 +120,8 @@ def list_interfaces() -> dict[str, Any]:
     "the exclusion dropped - and emit_stall_ms). kernel_drops climbing with "
     "emit_stall_ms near zero means the kernel buffer is too small; a high "
     "emit_stall_ms with no drops means the trace pipeline is the bottleneck.",
+    hidden=True,
+    read_only=True,
 )
 @action.select(
     "name",
@@ -152,6 +156,7 @@ def capture_stats(name: str = "") -> dict[str, Any]:
     "Check Permissions",
     "Probe whether live capture is possible on this machine and, if not, return "
     "the exact command to fix it. Run this before the first Start.",
+    read_only=True,
 )
 @action.text(
     "interface",

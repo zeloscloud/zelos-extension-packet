@@ -698,7 +698,7 @@ def replay_pcap(
 
 
 def probe_permissions(interface: str | None = None) -> dict[str, Any]:
-    """Try to open (and immediately close) a capture handle.
+    """Report whether live capture would work, from `zelos_packet status`, without opening a handle.
 
     Returns a result dict rather than raising, because this is the answer to
     "will Start work?" and callers want the remediation text either way.

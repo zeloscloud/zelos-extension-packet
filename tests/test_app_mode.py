@@ -85,6 +85,24 @@ class TestActionsSurface:
             "convert_pcap",
         }
 
+    def test_every_action_flag_is_pinned(self):
+        """Pins each action's flags, so a new action or a changed flag is a deliberate choice."""
+        from zelos_sdk.actions import ActionsRegistry
+
+        from zelos_extension_packet import actions
+
+        flags = {
+            name: (getattr(actions, name)._action.read_only, getattr(actions, name)._action.hidden)
+            for name in actions.register_actions(ActionsRegistry())
+        }
+        assert flags == {
+            "auto_config": (True, True),
+            "list_interfaces": (True, True),
+            "capture_stats": (True, True),
+            "check_permissions": (True, False),
+            "convert_pcap": (False, False),
+        }
+
     def test_capture_stats_reports_nothing_running(self):
         from zelos_extension_packet import actions
 
