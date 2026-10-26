@@ -371,7 +371,7 @@ def capture_cmd(
     no_someip_sd: bool,
     no_doip: bool,
 ) -> None:
-    """Capture one or more INTERFACEs without app configuration.
+    """Capture one or more interfaces without app configuration.
 
     Examples:
 
