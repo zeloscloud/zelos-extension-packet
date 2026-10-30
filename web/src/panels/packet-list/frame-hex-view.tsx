@@ -16,7 +16,12 @@ export interface ByteRange {
 const SELECTED_BYTE_CLASS = "hex-selected";
 
 /** `offset  hex  ascii`, one span per byte so a click finds its node; the text is exactly a plain dump's. */
-function hexLine(bytes: Uint8Array, start: number, selection: ByteRange | null, lastLine: boolean): ReactNode[] {
+function hexLine(
+  bytes: Uint8Array,
+  start: number,
+  selection: ByteRange | null,
+  lastLine: boolean,
+): ReactNode[] {
   const chunk = bytes.subarray(start, start + BYTES_PER_LINE);
   const selected = (offset: number) =>
     selection !== null && offset >= selection.offset && offset < selection.offset + selection.len
@@ -74,10 +79,18 @@ function snaplenNote(
 }
 
 /** The captured frame's bytes, hex + ASCII. */
-export function FrameHexView({ hex, truncated, capLen, origLen, selection, onSelectByte }: FrameHexViewProps) {
+export function FrameHexView({
+  hex,
+  truncated,
+  capLen,
+  origLen,
+  selection,
+  onSelectByte,
+}: FrameHexViewProps) {
   const { shown, truncatedBytes, note } = useMemo(() => {
     const bytes = parseFrameHex(hex);
-    const shown = bytes.length > FRAME_HEX_MAX_BYTES ? bytes.subarray(0, FRAME_HEX_MAX_BYTES) : bytes;
+    const shown =
+      bytes.length > FRAME_HEX_MAX_BYTES ? bytes.subarray(0, FRAME_HEX_MAX_BYTES) : bytes;
     return {
       shown,
       truncatedBytes: bytes.length - shown.length,
@@ -97,7 +110,9 @@ export function FrameHexView({ hex, truncated, capLen, origLen, selection, onSel
   const lines = useMemo(() => {
     const parts: ReactNode[] = [];
     for (let start = 0; start < shown.length; start += BYTES_PER_LINE) {
-      parts.push(...hexLine(shown, start, selection ?? null, start + BYTES_PER_LINE >= shown.length));
+      parts.push(
+        ...hexLine(shown, start, selection ?? null, start + BYTES_PER_LINE >= shown.length),
+      );
     }
     return parts;
   }, [shown, selection]);
@@ -109,11 +124,7 @@ export function FrameHexView({ hex, truncated, capLen, origLen, selection, onSel
   return (
     <>
       {/* Clicking a byte mirrors the tree, which is itself a list of buttons and keyboard-reachable. */}
-      <pre
-        data-testid="frame-hex-view"
-        className="hex-view"
-        onClick={handleClick}
-      >
+      <pre data-testid="frame-hex-view" className="hex-view" onClick={handleClick}>
         {lines}
         {truncatedBytes > 0 && `\n… ${truncatedBytes} more bytes`}
       </pre>

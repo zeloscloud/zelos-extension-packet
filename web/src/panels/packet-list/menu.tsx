@@ -23,6 +23,7 @@ export function packetMenuItems(target: PacketMenuTarget, canViewFrame: boolean)
   ];
   if (target.cellText) items.push({ id: PACKET_MENU.copyValue, label: "Copy value", icon: "copy" });
   items.push({ id: PACKET_MENU.copyRowJson, label: "Copy row as JSON", icon: "json" });
-  if (canViewFrame) items.push({ id: PACKET_MENU.viewFrame, label: "View frame bytes", icon: "bytes" });
+  if (canViewFrame)
+    items.push({ id: PACKET_MENU.viewFrame, label: "View frame bytes", icon: "bytes" });
   return items;
 }

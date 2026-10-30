@@ -19,7 +19,11 @@ type FrameQuery =
 const PENDING: FrameQuery = { status: "pending" };
 
 /** The `frame` of `row`, fetched each time it opens; only the open packet's answer is held. */
-export function useFrameQuery(bridge: BridgeTransport | null, row: PacketRow | null, live: boolean): FrameQuery {
+export function useFrameQuery(
+  bridge: BridgeTransport | null,
+  row: PacketRow | null,
+  live: boolean,
+): FrameQuery {
   const [answer, setAnswer] = useState<{ row: PacketRow; query: FrameQuery } | null>(null);
   if (answer !== null && answer.row !== row) setAnswer(null);
 
@@ -71,11 +75,21 @@ export function PacketFrameDrawer({
   }, [onClose]);
 
   return (
-    <section ref={ref} aria-label="Frame details" data-testid="packet-frame-drawer" className="frame-drawer">
+    <section
+      ref={ref}
+      aria-label="Frame details"
+      data-testid="packet-frame-drawer"
+      className="frame-drawer"
+    >
       <div className="frame-drawer-header">
         <span className="mono muted">No. {row.frameNo}</span>
         <span className="mono truncate">{frameSummary(row)}</span>
-        <button type="button" className="ghost-button close-button" aria-label="Close frame details" onClick={onClose}>
+        <button
+          type="button"
+          className="ghost-button close-button"
+          aria-label="Close frame details"
+          onClick={onClose}
+        >
           <ClearIcon />
         </button>
       </div>

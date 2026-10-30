@@ -9,7 +9,10 @@ import { streamKeyOf } from "../grid/streams";
  * a window around its lossy timestamp by frame number, never by position or nearest neighbor.
  */
 
-const queryApiMocks = vi.hoisted(() => ({ liveQueryAllMulti: vi.fn(), traceQueryAllMulti: vi.fn() }));
+const queryApiMocks = vi.hoisted(() => ({
+  liveQueryAllMulti: vi.fn(),
+  traceQueryAllMulti: vi.fn(),
+}));
 vi.mock("@zeloscloud/app-extension-sdk", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@zeloscloud/app-extension-sdk")>()),
   query: queryApiMocks,
@@ -75,13 +78,18 @@ describe("fetchPacketEventFields — exactly the clicked packet, by frame number
       ],
     });
 
-    await expect(fetchPacketEventFields(BRIDGE, row({ frameNo: 2 }), ["orig_len"], LIVE)).resolves.toEqual({
+    await expect(
+      fetchPacketEventFields(BRIDGE, row({ frameNo: 2 }), ["orig_len"], LIVE),
+    ).resolves.toEqual({
       orig_len: 90,
       frame_no: 2,
     });
     // The number is always asked for, even when the caller did not list it.
-    const paths = (queryApiMocks.liveQueryAllMulti.mock.calls[0]?.[1] as { agentSignals: Record<string, string[]> })
-      .agentSignals["agent-a"];
+    const paths = (
+      queryApiMocks.liveQueryAllMulti.mock.calls[0]?.[1] as {
+        agentSignals: Record<string, string[]>;
+      }
+    ).agentSignals["agent-a"];
     expect(paths?.some((path) => path.endsWith("frame_no"))).toBe(true);
   });
 
@@ -91,9 +99,9 @@ describe("fetchPacketEventFields — exactly the clicked packet, by frame number
       data: [[5], [74], [1]],
     });
 
-    await expect(fetchPacketEventFields(BRIDGE, row({ frameNo: 9 }), ["orig_len"], LIVE)).rejects.toBeInstanceOf(
-      PacketEventGoneError,
-    );
+    await expect(
+      fetchPacketEventFields(BRIDGE, row({ frameNo: 9 }), ["orig_len"], LIVE),
+    ).rejects.toBeInstanceOf(PacketEventGoneError);
   });
 });
 
@@ -106,11 +114,20 @@ describe("fetchPacketEventFields — the window it asks for", () => {
     tracePath: TRACE,
   });
   const tracePacket = (over: Partial<PacketRow>) =>
-    row({ producer: null, tracePath: TRACE, streamKey: streamKeyOf(traceColumn("orig_len")), ...over });
+    row({
+      producer: null,
+      tracePath: TRACE,
+      streamKey: streamKeyOf(traceColumn("orig_len")),
+      ...over,
+    });
 
   beforeEach(() => {
     queryApiMocks.traceQueryAllMulti.mockResolvedValue({
-      columns: [{ ...TIME_COLUMN, producer: null, tracePath: TRACE }, traceColumn("orig_len"), traceColumn("frame_no")],
+      columns: [
+        { ...TIME_COLUMN, producer: null, tracePath: TRACE },
+        traceColumn("orig_len"),
+        traceColumn("frame_no"),
+      ],
       data: [[5], [74], [1]],
     });
   });
@@ -131,7 +148,12 @@ describe("fetchPacketEventFields — the window it asks for", () => {
 
   // A row melted under `relative` holds elapsed seconds; read as epoch seconds it would point at 1970.
   it("asks for an elapsed window when the row was melted in relative time", async () => {
-    await fetchPacketEventFields(BRIDGE, tracePacket({ timeS: 5, timeMode: "relative" }), ["orig_len"], false);
+    await fetchPacketEventFields(
+      BRIDGE,
+      tracePacket({ timeS: 5, timeMode: "relative" }),
+      ["orig_len"],
+      false,
+    );
 
     expect(queryApiMocks.traceQueryAllMulti.mock.calls[0]?.[1]).toMatchObject({
       timeMode: "relative",
@@ -144,9 +166,9 @@ describe("fetchPacketEventFields — the window it asks for", () => {
     await expect(
       fetchPacketEventFields(BRIDGE, tracePacket({ tracePath: null }), ["orig_len"], false),
     ).rejects.toBeInstanceOf(PacketEventGoneError);
-    await expect(fetchPacketEventFields(BRIDGE, row({ producer: null }), ["orig_len"], LIVE)).rejects.toBeInstanceOf(
-      PacketEventGoneError,
-    );
+    await expect(
+      fetchPacketEventFields(BRIDGE, row({ producer: null }), ["orig_len"], LIVE),
+    ).rejects.toBeInstanceOf(PacketEventGoneError);
     expect(queryApiMocks.traceQueryAllMulti).not.toHaveBeenCalled();
     expect(queryApiMocks.liveQueryAllMulti).not.toHaveBeenCalled();
   });
@@ -156,7 +178,11 @@ describe("fetchPacketEventFields — a window full to its cap", () => {
   /** A window of `count` packets, none of them the one asked for. */
   const crowded = (count: number) => ({
     columns: [TIME_COLUMN, FIELD_COLUMN, FRAME_NO_COLUMN],
-    data: [Array(count).fill(5), Array(count).fill(74), Array.from({ length: count }, (_, i) => 100 + i)],
+    data: [
+      Array(count).fill(5),
+      Array(count).fill(74),
+      Array.from({ length: count }, (_, i) => 100 + i),
+    ],
   });
 
   it("asks once more with a wider cap, since the packet may sit past the first", async () => {
@@ -165,26 +191,32 @@ describe("fetchPacketEventFields — a window full to its cap", () => {
       data: [[5], [90], [9]],
     });
 
-    await expect(fetchPacketEventFields(BRIDGE, row({ frameNo: 9 }), ["orig_len"], LIVE)).resolves.toEqual({
+    await expect(
+      fetchPacketEventFields(BRIDGE, row({ frameNo: 9 }), ["orig_len"], LIVE),
+    ).resolves.toEqual({
       orig_len: 90,
       frame_no: 9,
     });
-    const caps = queryApiMocks.liveQueryAllMulti.mock.calls.map((call) => (call[1] as { maxRows: number }).maxRows);
+    const caps = queryApiMocks.liveQueryAllMulti.mock.calls.map(
+      (call) => (call[1] as { maxRows: number }).maxRows,
+    );
     expect(caps).toEqual([512, 4_096]);
   });
 
   it("gives up after the wider cap, and does not widen a window that came back short", async () => {
-    queryApiMocks.liveQueryAllMulti.mockResolvedValueOnce(crowded(512)).mockResolvedValueOnce(crowded(4_096));
-    await expect(fetchPacketEventFields(BRIDGE, row({ frameNo: 9 }), ["orig_len"], LIVE)).rejects.toBeInstanceOf(
-      PacketEventGoneError,
-    );
+    queryApiMocks.liveQueryAllMulti
+      .mockResolvedValueOnce(crowded(512))
+      .mockResolvedValueOnce(crowded(4_096));
+    await expect(
+      fetchPacketEventFields(BRIDGE, row({ frameNo: 9 }), ["orig_len"], LIVE),
+    ).rejects.toBeInstanceOf(PacketEventGoneError);
     expect(queryApiMocks.liveQueryAllMulti).toHaveBeenCalledTimes(2);
 
     queryApiMocks.liveQueryAllMulti.mockClear();
     queryApiMocks.liveQueryAllMulti.mockResolvedValueOnce(crowded(511));
-    await expect(fetchPacketEventFields(BRIDGE, row({ frameNo: 9 }), ["orig_len"], LIVE)).rejects.toBeInstanceOf(
-      PacketEventGoneError,
-    );
+    await expect(
+      fetchPacketEventFields(BRIDGE, row({ frameNo: 9 }), ["orig_len"], LIVE),
+    ).rejects.toBeInstanceOf(PacketEventGoneError);
     expect(queryApiMocks.liveQueryAllMulti).toHaveBeenCalledTimes(1);
   });
 });

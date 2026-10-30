@@ -1,46 +1,29 @@
-# Python bytecode
+# Python
 __pycache__/
 *.py[cod]
-*.pyo
-
-# Virtual environments / uv state
 .venv/
-.uv/
-.venv*/
-
-# Tooling caches
-.ty_cache/
 .pytest_cache/
 .ruff_cache/
-.mypy_cache/
-.coverage
-coverage.xml
-htmlcov/
 
-# Build artifacts
-build/
+# Node
+node_modules/
+
+# Build output and packages
 dist/
-*.egg-info/
-pip-wheel-metadata/
 *.tar.gz
-# Standalone action inventory: regenerated from the code on every package run.
 actions.json
 
-# Captures and traces (never commit binary fixtures - tests generate them)
-*.pcap
-*.pcapng
+# Traces the CLI's --file option records into the working directory
 *.trz
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# OS / editor junk (.vscode/ is committed - shared ruff/pytest settings)
+# Editors and OS
 .DS_Store
 .idea/
+*.swp
+
+# Local environment
+.env
+.envrc
 
 # Zelos
-.last_config
-.uploaded.*
+config.json

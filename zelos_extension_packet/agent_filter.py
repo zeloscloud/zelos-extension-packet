@@ -5,7 +5,7 @@ Capturing that traffic therefore feeds the extension its own output: one packet
 in produces one row out, the row is published, and the publish is captured. At
 useful snapshot lengths a row is larger than the packet that produced it, so
 the loop amplifies rather than settling. Excluding the agent's own address and
-port is the fix, and it is on by default.
+port is the fix.
 
 The agent endpoint is resolved exactly the way the SDK resolves it: the
 ``ZELOS_AGENT_URL`` environment variable, then ``http://localhost:2300``. A
@@ -117,8 +117,7 @@ def resolve_literals(host: str, port: int, resolver=socket.getaddrinfo) -> tuple
         raise ConfigError(
             f"Could not resolve the Zelos agent host {host!r} ({exc}), so its traffic "
             "cannot be excluded from the capture. Point ZELOS_AGENT_URL at an address "
-            "this machine resolves, or turn off 'Exclude Agent Traffic' (which risks a "
-            "capture/publish feedback loop)."
+            "this machine resolves."
         ) from exc
 
     v4: list[str] = []
@@ -138,7 +137,7 @@ def resolve_literals(host: str, port: int, resolver=socket.getaddrinfo) -> tuple
         raise ConfigError(
             f"The Zelos agent host {host!r} resolved to no usable addresses, so its "
             "traffic cannot be excluded from the capture. Point ZELOS_AGENT_URL at an "
-            "address this machine resolves, or turn off 'Exclude Agent Traffic'."
+            "address this machine resolves."
         )
     return literals
 
@@ -148,20 +147,3 @@ def resolve_agent_endpoint(url: str | None = None, resolver=socket.getaddrinfo) 
     host, port = parse_agent_url(url)
     literals = resolve_literals(host, port, resolver=resolver)
     return AgentEndpoint(host=host, port=port, literals=literals)
-
-
-LOOPBACK_NAMES = frozenset({"lo", "lo0", "loopback", "localhost"})
-
-
-def is_loopback_interface(name: str) -> bool:
-    """Heuristic loopback check, used only to decide whether to warn."""
-    return name.strip().lower() in LOOPBACK_NAMES
-
-
-AMPLIFICATION_WARNING = (
-    "Agent-traffic exclusion is DISABLED while capturing on loopback interface %r. "
-    "The agent is reached over this interface, so every row this extension "
-    "publishes is captured again, and at snaplen %d a row is larger than the "
-    "packet that produced it - the feedback loop amplifies without settling. "
-    "Re-enable 'Exclude Agent Traffic' unless you are deliberately measuring this."
-)

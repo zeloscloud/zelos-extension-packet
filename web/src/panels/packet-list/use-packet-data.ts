@@ -1,6 +1,10 @@
-import type { AppBridgePanelData, AppBridgePanelSignal, PanelSubscribeParams } from "@zeloscloud/app-extension-sdk";
+import type {
+  AppBridgePanelData,
+  AppBridgePanelSignal,
+  PanelSubscribeParams,
+} from "@zeloscloud/app-extension-sdk";
 import { usePanelData } from "@zeloscloud/app-extension-sdk/react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { meltPacketRows, type PacketField, type PacketRow, packetsLackFrameNumbers } from "./data";
 import { toTimeMode } from "./grid/format";
 
@@ -15,7 +19,13 @@ export function usePacketData(
   bufferSize: number,
   fields: ReadonlySet<PacketField>,
   frozen: boolean,
-): { rows: PacketRow[]; totalRows: number; isLoading: boolean; error: string | null; unnumbered: boolean } {
+): {
+  rows: PacketRow[];
+  totalRows: number;
+  isLoading: boolean;
+  error: string | null;
+  unnumbered: boolean;
+} {
   const paths = useMemo(
     () => uniquePaths(signals.filter((signal) => fields.has(signal.signal as PacketField))),
     [signals, fields],
@@ -25,37 +35,55 @@ export function usePacketData(
     () =>
       paths.length === 0
         ? null
-        : { id: "packets", shape: "rows", signals: paths, maxRows: bufferSize, sortOrder: "desc", endAtCursor: false },
+        : {
+            id: "packets",
+            shape: "rows",
+            signals: paths,
+            maxRows: bufferSize,
+            sortOrder: "desc",
+            endAtCursor: false,
+          },
     [paths, bufferSize],
   );
   const paramsKey = params === null ? null : JSON.stringify(params);
 
-  const heldRef = useRef<AppBridgePanelData | null>(null);
-  const [heldKey, setHeldKey] = useState<string | null>(null);
-  const frame = usePanelData(frozen && heldKey === paramsKey ? null : params);
-  let nextHeldKey = heldKey;
+  const [held, setHeld] = useState<{ frame: AppBridgePanelData | null; key: string | null }>({
+    frame: null,
+    key: null,
+  });
+  const frame = usePanelData(frozen && held.key === paramsKey ? null : params);
+  let nextHeld = held;
   if (paramsKey === null) {
-    heldRef.current = null;
-    nextHeldKey = null;
-  } else if (frame && !frame.isLoading && frame !== heldRef.current) {
+    if (held.frame !== null || held.key !== null) nextHeld = { frame: null, key: null };
+  } else if (frame && !frame.isLoading && frame !== held.frame) {
     // A replaced subscription returns its last frame until the new one answers: key only a new, answered frame.
-    heldRef.current = frame;
-    nextHeldKey = paramsKey;
+    nextHeld = { frame, key: paramsKey };
   }
-  if (nextHeldKey !== heldKey) setHeldKey(nextHeldKey);
-  const shown = frame ?? heldRef.current;
+  if (nextHeld !== held) setHeld(nextHeld);
+  const shown = frame ?? nextHeld.frame;
 
   const dataset = shown?.dataset ?? null;
   // The frame's mode, not the ambient one: the per-packet re-fetch expresses its window in it.
   const timeMode = toTimeMode(shown?.timeMode);
 
   // Unchanged packets keep their object, so AG Grid skips them.
-  const previousRowsRef = useRef<PacketRow[]>([]);
-  const rows = useMemo(() => {
-    const next = meltPacketRows(dataset, "desc", signals, timeMode, previousRowsRef.current);
-    previousRowsRef.current = next;
-    return next;
-  }, [dataset, signals, timeMode]);
+  const [melted, setMelted] = useState(() => ({
+    dataset,
+    signals,
+    timeMode,
+    rows: meltPacketRows(dataset, "desc", signals, timeMode, []),
+  }));
+  let current = melted;
+  if (melted.dataset !== dataset || melted.signals !== signals || melted.timeMode !== timeMode) {
+    current = {
+      dataset,
+      signals,
+      timeMode,
+      rows: meltPacketRows(dataset, "desc", signals, timeMode, melted.rows),
+    };
+    setMelted(current);
+  }
+  const rows = current.rows;
 
   return {
     rows,

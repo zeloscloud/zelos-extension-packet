@@ -24,7 +24,9 @@ describe("the hex dump layout", () => {
     const lines = dumpLines(hex);
 
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toBe("0000  41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50  ABCDEFGHIJKLMNOP");
+    expect(lines[0]).toBe(
+      "0000  41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50  ABCDEFGHIJKLMNOP",
+    );
     // The short line's hex field keeps its width, so the ASCII gutter stays in the same column.
     expect(lines[1]).toBe("0010  51 52                                            QR");
   });
@@ -50,17 +52,22 @@ describe("FrameHexView", () => {
 
   it("highlights the selected node's bytes and reports the byte that was clicked", () => {
     const onSelectByte = vi.fn();
-    render(<FrameHexView hex="0x41424344" selection={{ offset: 1, len: 2 }} onSelectByte={onSelectByte} />);
+    render(
+      <FrameHexView
+        hex="0x41424344"
+        selection={{ offset: 1, len: 2 }}
+        onSelectByte={onSelectByte}
+      />,
+    );
 
     // Two spans per byte: the hex pair and its ASCII character, both selectable and both highlighted.
     const cells = screen.getByTestId("frame-hex-view").querySelectorAll("span[data-offset]");
     expect(cells).toHaveLength(8);
-    expect([...cells].filter((cell) => cell.className !== "").map((cell) => cell.getAttribute("data-offset"))).toEqual([
-      "1",
-      "2",
-      "1",
-      "2",
-    ]);
+    expect(
+      [...cells]
+        .filter((cell) => cell.className !== "")
+        .map((cell) => cell.getAttribute("data-offset")),
+    ).toEqual(["1", "2", "1", "2"]);
 
     fireEvent.click(cells[3] as HTMLElement);
     expect(onSelectByte).toHaveBeenCalledWith(3);

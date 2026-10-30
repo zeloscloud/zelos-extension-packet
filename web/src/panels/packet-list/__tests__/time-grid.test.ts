@@ -1,5 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
-import type { BodyScrollEvent, ColumnState, GridApi, IRowNode, RowClassParams } from "ag-grid-community";
+import type {
+  BodyScrollEvent,
+  ColumnState,
+  GridApi,
+  IRowNode,
+  RowClassParams,
+} from "ag-grid-community";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTimeGrid } from "../grid/time-grid";
 
@@ -63,7 +69,15 @@ const getGridApi = () => grid.api;
 const onError = vi.fn();
 
 const sortedByTime = (sort: "asc" | "desc" | null): ColumnState[] => [
-  { colId: "time", width: 200, flex: null, hide: false, pinned: "left", sort, sortIndex: sort ? 0 : null },
+  {
+    colId: "time",
+    width: 200,
+    flex: null,
+    hide: false,
+    pinned: "left",
+    sort,
+    sortIndex: sort ? 0 : null,
+  },
 ];
 
 function mount(columnState: ColumnState[] | null = null, rows: readonly TestRow[] = ROWS) {
@@ -84,7 +98,11 @@ function mount(columnState: ColumnState[] | null = null, rows: readonly TestRow[
 
 const scrollAway = (view: ReturnType<typeof mount>) => {
   grid.viewport = { top: 1_000, bottom: 1_000 + VIEWPORT_HEIGHT };
-  act(() => view.result.current.gridEvents.onBodyScroll({ direction: "vertical" } as BodyScrollEvent<TestRow>));
+  act(() =>
+    view.result.current.gridEvents.onBodyScroll({
+      direction: "vertical",
+    } as BodyScrollEvent<TestRow>),
+  );
 };
 
 beforeEach(() => {
@@ -100,7 +118,9 @@ beforeEach(() => {
 
 describe("the cursor row", () => {
   const markedRow = (): TestRow | undefined => {
-    const [rule] = Object.values(mount().result.current.rowClassRules) as ((p: RowClassParams<TestRow>) => boolean)[];
+    const [rule] = Object.values(mount().result.current.rowClassRules) as ((
+      p: RowClassParams<TestRow>,
+    ) => boolean)[];
     return ROWS.find((row) => rule?.({ data: row } as RowClassParams<TestRow>));
   };
 
@@ -126,7 +146,9 @@ describe("the cursor row", () => {
 
   it("marks exactly that row, and no other", () => {
     host.time = { cursorS: 25, playback: "PAUSED" };
-    const [rule] = Object.values(mount().result.current.rowClassRules) as ((p: RowClassParams<TestRow>) => boolean)[];
+    const [rule] = Object.values(mount().result.current.rowClassRules) as ((
+      p: RowClassParams<TestRow>,
+    ) => boolean)[];
 
     expect(rule?.({ data: ROWS[1] } as RowClassParams<TestRow>)).toBe(true);
     expect(rule?.({ data: ROWS[2] } as RowClassParams<TestRow>)).toBe(false);
@@ -147,7 +169,9 @@ describe("onSetCursor", () => {
     const { result } = mount();
     act(() => result.current.onSetCursor(42));
 
-    await vi.waitFor(() => expect(onError).toHaveBeenCalledWith("Couldn't set the cursor", refusal));
+    await vi.waitFor(() =>
+      expect(onError).toHaveBeenCalledWith("Couldn't set the cursor", refusal),
+    );
   });
 });
 

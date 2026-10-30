@@ -63,7 +63,10 @@ grid.api = {
 const SHORT = 24;
 const TALL = 32;
 /** 10 short rows then 10 tall ones: 560 px of content behind a 320 px viewport. */
-const ROWS: DisplayedRow[] = Array.from({ length: 20 }, (_, i) => ({ id: `r${i}`, height: i < 10 ? SHORT : TALL }));
+const ROWS: DisplayedRow[] = Array.from({ length: 20 }, (_, i) => ({
+  id: `r${i}`,
+  height: i < 10 ? SHORT : TALL,
+}));
 const NEWEST_INDEX = ROWS.length - 1;
 const NEWEST = "r19";
 /** The newest row occupies [528, 560], so a viewport parked at the tail starts at 240. */
@@ -104,7 +107,9 @@ function options(overrides: Partial<FollowOptions> = {}): FollowOptions {
 
 /** Render the hook and, as a mounted grid does, its first rows; then forget the scroll that parked them. */
 function renderFollow(overrides: Partial<FollowOptions> = {}, { rendered = true } = {}) {
-  const hook = renderHook((props: FollowOptions) => useGridFollow(props), { initialProps: options(overrides) });
+  const hook = renderHook((props: FollowOptions) => useGridFollow(props), {
+    initialProps: options(overrides),
+  });
   if (rendered) act(() => hook.result.current.gridEvents.onFirstDataRendered());
   grid.ensureIndexVisible.mockClear();
   return hook;
@@ -298,7 +303,9 @@ describe("useGridFollow — the tail", () => {
       grid.rows = [...ROWS, { id: "r20", height: TALL }, { id: "r21", height: TALL }];
     });
     rerender(options({ newestRowId: "r21" }));
-    act(() => result.current.gridEvents.onBodyScroll({ direction: "vertical" } as BodyScrollEvent<TestRow>));
+    act(() =>
+      result.current.gridEvents.onBodyScroll({ direction: "vertical" } as BodyScrollEvent<TestRow>),
+    );
 
     expect(result.current.follow).toBeUndefined();
   });
@@ -316,7 +323,9 @@ describe("useGridFollow — the tail", () => {
       grid.rows = rotated;
     });
     rerender(options({ newestRowId: "r20" }));
-    act(() => result.current.gridEvents.onBodyScroll({ direction: "vertical" } as BodyScrollEvent<TestRow>));
+    act(() =>
+      result.current.gridEvents.onBodyScroll({ direction: "vertical" } as BodyScrollEvent<TestRow>),
+    );
     expect(result.current.follow).toBeUndefined();
 
     act(() => result.current.gridEvents.onModelUpdated());
@@ -333,7 +342,9 @@ describe("useGridFollow — the tail", () => {
     rerender(options({ newestRowId: "r20" }));
     grid.ensureIndexVisible.mockImplementation(() => {});
     act(() => result.current.gridEvents.onModelUpdated());
-    act(() => result.current.gridEvents.onBodyScroll({ direction: "vertical" } as BodyScrollEvent<TestRow>));
+    act(() =>
+      result.current.gridEvents.onBodyScroll({ direction: "vertical" } as BodyScrollEvent<TestRow>),
+    );
 
     expect(result.current.follow).toBeUndefined();
   });
@@ -351,7 +362,9 @@ describe("useGridFollow — the tail", () => {
 
     act(() => {
       grid.viewport = { top: 0, bottom: VIEWPORT_HEIGHT };
-      result.current.gridEvents.onBodyScroll({ direction: "horizontal" } as BodyScrollEvent<TestRow>);
+      result.current.gridEvents.onBodyScroll({
+        direction: "horizontal",
+      } as BodyScrollEvent<TestRow>);
     });
 
     expect(result.current.follow).toBeUndefined();
@@ -505,7 +518,10 @@ describe("useGridFollow — a reload reopens where the panel was", () => {
   });
 
   it("opens a fresh panel at the top of its rows, not on the cursor", () => {
-    const { result } = renderFollow({ cursorRowId: CURSOR, followsTail: false }, { rendered: false });
+    const { result } = renderFollow(
+      { cursorRowId: CURSOR, followsTail: false },
+      { rendered: false },
+    );
 
     act(() => result.current.gridEvents.onFirstDataRendered());
     expect(grid.ensureIndexVisible).not.toHaveBeenCalled();

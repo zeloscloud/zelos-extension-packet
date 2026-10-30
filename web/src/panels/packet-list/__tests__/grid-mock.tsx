@@ -4,7 +4,7 @@ import { vi } from "vitest";
 /*
  * `ag-grid-react`, flattened to the props it was handed plus a minimal DOM driven by the panel's REAL
  * columnDefs, rowData and external filter, so the suites exercise the panel's own column building,
- * formatting, filtering and cell rendering. A real grid needs layout APIs happy-dom doesn't provide.
+ * formatting, filtering and cell rendering. A real grid needs layout APIs jsdom doesn't provide.
  *
  * The `ag-row` / `ag-cell` markers and their `row-id` / `col-id` attributes are the contract the panel's
  * context menu resolves a right-click through (it reads the DOM), so the fake emits them.
@@ -50,7 +50,9 @@ export function mockAgGrid() {
     const [, refilter] = useReducer((n: number) => n + 1, 0);
 
     const filtering = props.isExternalFilterPresent?.() ?? false;
-    const shown = filtering ? props.rowData.filter((data) => props.doesExternalFilterPass?.({ data }) ?? true) : props.rowData;
+    const shown = filtering
+      ? props.rowData.filter((data) => props.doesExternalFilterPass?.({ data }) ?? true)
+      : props.rowData;
     const shownRef = useRef(shown);
     shownRef.current = shown;
 
@@ -81,23 +83,29 @@ export function mockAgGrid() {
     }
     const api = apiRef.current;
 
+    // Once, as AG Grid does.
+    const gridReady = useRef(false);
     useEffect(() => {
+      if (gridReady.current) return;
+      gridReady.current = true;
       props.onGridReady?.({ api });
-      // Once, as AG Grid does.
-    }, []);
+    }, [api, props]);
 
     const firstRendered = useRef(false);
     useEffect(() => {
       if (firstRendered.current || props.rowData.length === 0) return;
       firstRendered.current = true;
       props.onFirstDataRendered?.();
-    }, [props.rowData.length]);
+    }, [props]);
 
+    // The model changes when the displayed rows do.
     const shownKey = shown.map((row) => row.id).join("\u0000");
+    const modelKey = useRef<string | null>(null);
     useEffect(() => {
+      if (modelKey.current === shownKey) return;
+      modelKey.current = shownKey;
       props.onModelUpdated?.({ api });
-      // The model changes when the displayed rows do.
-    }, [shownKey]);
+    }, [shownKey, api, props]);
 
     const columns = props.columnDefs.filter((column) => !column.hide);
     return (
@@ -117,11 +125,22 @@ export function mockAgGrid() {
           >
             {columns.map((column) => {
               const value = column.valueGetter?.({ data: row });
-              const valueFormatted = column.valueFormatter ? column.valueFormatter({ data: row, value }) : null;
+              const valueFormatted = column.valueFormatter
+                ? column.valueFormatter({ data: row, value })
+                : null;
               const Cell = column.cellRenderer;
               return (
-                <span key={column.colId} data-testid="cell" className="ag-cell" col-id={column.colId}>
-                  {Cell ? <Cell data={row} value={value} valueFormatted={valueFormatted} /> : String(value ?? "")}
+                <span
+                  key={column.colId}
+                  data-testid="cell"
+                  className="ag-cell"
+                  col-id={column.colId}
+                >
+                  {Cell ? (
+                    <Cell data={row} value={value} valueFormatted={valueFormatted} />
+                  ) : (
+                    String(value ?? "")
+                  )}
                 </span>
               );
             })}
@@ -141,7 +160,8 @@ export function scrollGrid(top: number): void {
 
 /** The cell a suite right-clicks: the same `.ag-cell[col-id]` inside `.ag-row` a real grid renders. */
 export function gridCell(colId: string, rowIndex: number): HTMLElement {
-  const cell = document.querySelectorAll(".ag-row")[rowIndex]?.querySelector(`.ag-cell[col-id="${colId}"]`);
+  const row = document.querySelectorAll(".ag-row")[rowIndex];
+  const cell = row?.querySelector(`.ag-cell[col-id="${colId}"]`);
   if (!(cell instanceof HTMLElement)) throw new Error(`no ${colId} cell in row ${rowIndex}`);
   return cell;
 }

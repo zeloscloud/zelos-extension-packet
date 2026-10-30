@@ -59,7 +59,9 @@ describe("gridTimeColumnDef", () => {
     const getter = def.valueGetter as (p: ValueGetterParams<TestRow>) => number | undefined;
 
     expect(getter({ data: row } as ValueGetterParams<TestRow>)).toBe(row.timeS);
-    expect(formatted({ data: row } as ValueFormatterParams<TestRow>)).toBe(formatTimeByMode(row.timeS, "absolute"));
+    expect(formatted({ data: row } as ValueFormatterParams<TestRow>)).toBe(
+      formatTimeByMode(row.timeS, "absolute"),
+    );
     expect(formatted({ data: undefined } as ValueFormatterParams<TestRow>)).toBe("");
     // Just after a mode switch, a row melted under the old mode still reads in it.
     const elapsed = { timeS: 1.25, timeMode: "relative" as const };
@@ -95,6 +97,8 @@ describe("formatTimeByMode", () => {
   });
 
   it("reads an absolute time as local wall-clock", () => {
-    expect(formatTimeByMode(0, "absolute")).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{2}:\d{2}$/);
+    expect(formatTimeByMode(0, "absolute")).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{2}:\d{2}$/,
+    );
   });
 });

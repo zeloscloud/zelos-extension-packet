@@ -39,7 +39,11 @@ interface PacketColumnDefsParams {
 }
 
 /** Built at module scope: a builder closed over the render scope would pin a whole row buffer in the ColDefs. */
-export function buildPacketColumnDefs({ timeMode, fields, timeWidth }: PacketColumnDefsParams): ColDef<PacketRow>[] {
+export function buildPacketColumnDefs({
+  timeMode,
+  fields,
+  timeWidth,
+}: PacketColumnDefsParams): ColDef<PacketRow>[] {
   return [
     {
       colId: "no",

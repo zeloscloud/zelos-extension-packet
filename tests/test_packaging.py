@@ -1,8 +1,4 @@
-"""`zelos extensions package` reads extension.toml and refuses on a dangling path.
-
-Every miss below would surface for the first time at tag time, in the release
-workflow, with the tag already pushed. Catching it in CI is the whole point.
-"""
+"""Manifest facts the packager cannot check: saved-layout ids, targets and the action namespace."""
 
 from __future__ import annotations
 
@@ -10,31 +6,8 @@ import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = tomllib.loads((REPO_ROOT / "extension.toml").read_text())
-
-# Added to the archive by the CLI whether or not [package] names them.
-IMPLICIT_KEYS = ["icon", "readme"]
-
-
-@pytest.mark.parametrize("relative", MANIFEST["package"]["paths"])
-def test_package_path_exists(relative: str) -> None:
-    """`dist` is the built panel: `just test` builds it first, as `just package` does."""
-    assert (REPO_ROOT / relative).exists(), f"[package] paths names a missing {relative}"
-
-
-@pytest.mark.parametrize("panel", MANIFEST["app"]["panels"], ids=lambda panel: panel["id"])
-def test_panel_files_are_packaged(panel: dict) -> None:
-    """Each panel's entry, icon and options schema exist and sit under a packaged path."""
-    for key in ("entry", "icon", "options_schema"):
-        relative = panel[key]
-        assert (REPO_ROOT / relative).is_file(), (
-            f"panel {panel['id']} {key} names a missing {relative}"
-        )
-        top = relative.split("/", 1)[0]
-        assert top in MANIFEST["package"]["paths"], f"{relative} is outside [package] paths"
 
 
 def test_saved_layouts_find_the_packet_list() -> None:
@@ -42,20 +15,6 @@ def test_saved_layouts_find_the_packet_list() -> None:
     owner_repo = urlparse(MANIFEST["repository"]).path.strip("/")
     assert owner_repo.lower().replace("/", ".", 1) == "zeloscloud.zelos-extension-packet"
     assert "packet-list" in {panel["id"] for panel in MANIFEST["app"]["panels"]}
-
-
-@pytest.mark.parametrize("key", IMPLICIT_KEYS)
-def test_referenced_file_exists(key: str) -> None:
-    assert (REPO_ROOT / MANIFEST[key]).is_file(), f"manifest {key} points at a missing file"
-
-
-def test_config_schema_exists() -> None:
-    assert (REPO_ROOT / MANIFEST["config"]["schema"]).is_file()
-
-
-def test_entry_point_is_packaged() -> None:
-    """The agent entry has to be in [package] paths - nothing adds it implicitly."""
-    assert MANIFEST["agent"]["entry"] in MANIFEST["package"]["paths"]
 
 
 #: Wheel platform tag fragment → manifest target name.
@@ -90,16 +49,8 @@ def test_agent_targets_match_the_native_wheels() -> None:
     assert set(MANIFEST["agent"]["targets"]) == _locked_zelos_packet_targets()
 
 
-def test_entry_module_re_exports_the_action_prefix() -> None:
-    """At-rest and live actions must land in one namespace.
-
-    The inventory dump reads `ACTION_PREFIX` off the entry module and otherwise
-    falls back to its name, so a missing re-export ships `main/convert_pcap`
-    while the running extension serves `Packet/convert_pcap` - two unrelated
-    trees, no error anywhere.
-    """
-    import main
-    from zelos_extension_packet import ACTION_PREFIX
+def test_actions_register_under_the_manifest_name() -> None:
+    """`zelos_sdk.init` takes SOURCE_PREFIX, and the app resolves actions by the manifest name."""
     from zelos_extension_packet.cli import SOURCE_PREFIX
 
-    assert main.ACTION_PREFIX == ACTION_PREFIX == SOURCE_PREFIX
+    assert MANIFEST["name"] == SOURCE_PREFIX

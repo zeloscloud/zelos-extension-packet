@@ -23,14 +23,21 @@ function monoCellFamily(): string {
 }
 
 /** The Time column's width at a font size: its widest time in the cells' mono face, plus their padding. */
-export function timeColumnWidth(timeMode: TimeMode, fontSizePx: number, startS: number, endS: number): number | undefined {
+export function timeColumnWidth(
+  timeMode: TimeMode,
+  fontSizePx: number,
+  startS: number,
+  endS: number,
+): number | undefined {
   measureContext ??= document.createElement("canvas").getContext("2d");
   const measure = measureContext;
   if (!measure) return undefined;
   measure.font = `${fontSizePx}px ${monoCellFamily()}`;
   // Every wall-clock time renders at one width; an elapsed time is widest at an end of the data.
   const times = timeMode === "relative" ? [startS, endS] : [0];
-  const widest = Math.max(...times.map((timeS) => measure.measureText(formatTimeByMode(timeS, timeMode)).width));
+  const widest = Math.max(
+    ...times.map((timeS) => measure.measureText(formatTimeByMode(timeS, timeMode)).width),
+  );
   return Math.ceil(widest) + 2 * GRID_CELL_HORIZONTAL_PADDING_PX;
 }
 
@@ -38,8 +45,12 @@ export function timeColumnWidth(timeMode: TimeMode, fontSizePx: number, startS: 
 type TimedRow = { timeS: number; timeMode?: TimeMode | undefined };
 
 /** The Time column. Sortable against the grid's default: the tail chase needs the newest row at an end. */
-export function gridTimeColumnDef<TRow extends TimedRow>(timeMode: TimeMode, width: number | undefined): ColDef<TRow> {
-  const text = (row: TRow | undefined) => (row ? formatTimeByMode(row.timeS, row.timeMode ?? timeMode) : "");
+export function gridTimeColumnDef<TRow extends TimedRow>(
+  timeMode: TimeMode,
+  width: number | undefined,
+): ColDef<TRow> {
+  const text = (row: TRow | undefined) =>
+    row ? formatTimeByMode(row.timeS, row.timeMode ?? timeMode) : "";
   return {
     // A floor, so a larger font or a saved width never cuts the time.
     ...(width === undefined ? {} : { initialWidth: width, minWidth: width }),

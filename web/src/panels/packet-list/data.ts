@@ -63,13 +63,17 @@ export type PacketField = (typeof PACKET_FIELDS)[number];
 /** `before` when `next` changes nothing in it, so the row keeps its object identity; else `next`. */
 function keepIdentity(before: PacketRow | undefined, next: PacketRow): PacketRow {
   if (!before) return next;
-  return (Object.keys(next) as (keyof PacketRow)[]).every((key) => before[key] === next[key]) ? before : next;
+  return (Object.keys(next) as (keyof PacketRow)[]).every((key) => before[key] === next[key])
+    ? before
+    : next;
 }
 
 /** Packets without `frame_no`, from a Packet extension older than it: rows need that identity, so none are listed. */
 export function packetsLackFrameNumbers(dataset: QueryDataMulti | null | undefined): boolean {
   const columns = dataset?.columns ?? [];
-  return columns.some((c) => c.signal === "orig_len") && !columns.some((c) => c.signal === "frame_no");
+  return (
+    columns.some((c) => c.signal === "orig_len") && !columns.some((c) => c.signal === "frame_no")
+  );
 }
 
 /** Row `i` of `stream`, or null when it is another stream's. Row queries return plain values, never value codes. */
@@ -148,7 +152,11 @@ export function meltPacketRows(
 function packetWindow(
   dataset: QueryDataMulti | null | undefined,
   panelSignals: readonly BoundSignal[],
-): { timeColumn: QueryCellValue[]; data: QueryDataMulti["data"]; streams: FieldStream<PacketField>[] } | null {
+): {
+  timeColumn: QueryCellValue[];
+  data: QueryDataMulti["data"];
+  streams: FieldStream<PacketField>[];
+} | null {
   const columns = dataset?.columns ?? [];
   const data = dataset?.data ?? [];
   // The time column is identified by metadata, never by position.
@@ -157,9 +165,12 @@ function packetWindow(
   if (!timeColumn?.length) return null;
 
   // Both are NOT NULL in a packet stream; the stats event's `iface` alone would melt into phantom rows.
-  const streams = buildFieldStreams<PacketField>(columns, timeColumnIndex, panelSignals, PACKET_FIELDS).filter(
-    (stream) => stream.fields.orig_len >= 0 && stream.fields.frame_no >= 0,
-  );
+  const streams = buildFieldStreams<PacketField>(
+    columns,
+    timeColumnIndex,
+    panelSignals,
+    PACKET_FIELDS,
+  ).filter((stream) => stream.fields.orig_len >= 0 && stream.fields.frame_no >= 0);
   return streams.length === 0 ? null : { timeColumn, data, streams };
 }
 

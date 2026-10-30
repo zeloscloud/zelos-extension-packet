@@ -6,7 +6,11 @@ import { buildPacketColumnDefs } from "../columns";
 import type { PacketRow } from "../data";
 import { formatTimeByMode } from "../grid/format";
 import { timeColumnWidth } from "../grid/time-column";
-import { type ResolvedPacketOptions, resolvePacketPanelOptions, visiblePacketFields } from "../options";
+import {
+  type ResolvedPacketOptions,
+  resolvePacketPanelOptions,
+  visiblePacketFields,
+} from "../options";
 
 function row(over: Partial<PacketRow> = {}): PacketRow {
   return {
@@ -38,7 +42,10 @@ function row(over: Partial<PacketRow> = {}): PacketRow {
 
 const DEFAULTS: ResolvedPacketOptions = resolvePacketPanelOptions(null);
 
-function columns(options: Partial<ResolvedPacketOptions> = {}, forceInterface = false): ColDef<PacketRow>[] {
+function columns(
+  options: Partial<ResolvedPacketOptions> = {},
+  forceInterface = false,
+): ColDef<PacketRow>[] {
   return buildPacketColumnDefs({
     timeMode: "absolute",
     fields: visiblePacketFields({ ...DEFAULTS, ...options }, forceInterface),
@@ -98,16 +105,17 @@ describe("packet columns", () => {
       return screen.getByText(proto);
     };
 
-    expect(chip("TCP").style.color).toBe("#3b82f6");
-    expect(chip("ICMPv6").style.color).toBe("#f59e0b");
-    expect(chip("V2GTP").style.color).toBe("#6366f1");
-    expect(chip("Ethernet").style.color).toBe("#9ca3af");
+    expect(chip("TCP")).toHaveStyle({ color: "#3b82f6" });
+    expect(chip("ICMPv6")).toHaveStyle({ color: "#f59e0b" });
+    expect(chip("V2GTP")).toHaveStyle({ color: "#6366f1" });
+    expect(chip("Ethernet")).toHaveStyle({ color: "#9ca3af" });
   });
 });
 
-// happy-dom draws nothing: a canvas whose characters are 0.6 em wide stands in for the cells' mono face.
+// jsdom draws nothing: a canvas whose characters are 0.6 em wide stands in for the cells' mono face.
 const CHAR_EM = 0.6;
-const shown = (text: string, fontSizePx: number) => Math.ceil(text.length * fontSizePx * CHAR_EM) + 32;
+const shown = (text: string, fontSizePx: number) =>
+  Math.ceil(text.length * fontSizePx * CHAR_EM) + 32;
 
 describe("the Time column's width", () => {
   beforeEach(() => {
@@ -117,7 +125,9 @@ describe("the Time column's width", () => {
         return { width: text.length * Number.parseFloat(this.font) * CHAR_EM };
       },
     };
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(measure as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      measure as unknown as CanvasRenderingContext2D,
+    );
   });
 
   it("holds a whole wall-clock time, and grows with the font", () => {
@@ -128,14 +138,20 @@ describe("the Time column's width", () => {
   });
 
   it("holds a whole elapsed time at either end of the data", () => {
-    expect(timeColumnWidth("relative", 14, 0, 432_000.5)).toBe(shown(formatTimeByMode(432_000.5, "relative"), 14));
-    expect(timeColumnWidth("relative", 14, -36_000, 5)).toBe(shown(formatTimeByMode(-36_000, "relative"), 14));
+    expect(timeColumnWidth("relative", 14, 0, 432_000.5)).toBe(
+      shown(formatTimeByMode(432_000.5, "relative"), 14),
+    );
+    expect(timeColumnWidth("relative", 14, -36_000, 5)).toBe(
+      shown(formatTimeByMode(-36_000, "relative"), 14),
+    );
   });
 
   it("is where the column starts, and it is never narrowed below it", () => {
-    const time = buildPacketColumnDefs({ timeMode: "absolute", fields: new Set(), timeWidth: 400 }).find(
-      (c) => c.colId === "time",
-    );
+    const time = buildPacketColumnDefs({
+      timeMode: "absolute",
+      fields: new Set(),
+      timeWidth: 400,
+    }).find((c) => c.colId === "time");
 
     expect([time?.initialWidth, time?.minWidth, time?.width]).toEqual([400, 400, undefined]);
   });

@@ -45,18 +45,36 @@ const TCP_HEADER = [
 
 const frame = (...parts: number[][]) => new Uint8Array(parts.flat());
 
-function child(nodes: readonly DissectNode[], layer: string, label: string): DissectNode | undefined {
+function child(
+  nodes: readonly DissectNode[],
+  layer: string,
+  label: string,
+): DissectNode | undefined {
   return nodes.find((node) => node.label === layer)?.children?.find((node) => node.label === label);
 }
 
 describe("dissectFrame", () => {
   it("renders Ethernet/IPv4/TCP as layers whose offsets address the frame", () => {
-    const nodes = dissectFrame(frame(ETH_HEADER, be(0x0800), IPV4_TCP_HEADER, TCP_HEADER), ETHERNET);
+    const nodes = dissectFrame(
+      frame(ETH_HEADER, be(0x0800), IPV4_TCP_HEADER, TCP_HEADER),
+      ETHERNET,
+    );
 
     expect(nodes.map((node) => node.label)).toEqual(["Ethernet", "IPv4", "TCP"]);
-    expect(child(nodes, "IPv4", "Source Address")).toMatchObject({ value: "10.0.0.5", offset: 26, len: 4 });
-    expect(child(nodes, "IPv4", "Destination Address")).toMatchObject({ value: "93.184.216.34", offset: 30 });
-    expect(child(nodes, "TCP", "Source Port")).toMatchObject({ value: "51514", offset: 34, len: 2 });
+    expect(child(nodes, "IPv4", "Source Address")).toMatchObject({
+      value: "10.0.0.5",
+      offset: 26,
+      len: 4,
+    });
+    expect(child(nodes, "IPv4", "Destination Address")).toMatchObject({
+      value: "93.184.216.34",
+      offset: 30,
+    });
+    expect(child(nodes, "TCP", "Source Port")).toMatchObject({
+      value: "51514",
+      offset: 34,
+      len: 2,
+    });
     expect(child(nodes, "TCP", "Destination Port")).toMatchObject({ value: "443", offset: 36 });
     expect(child(nodes, "TCP", "Flags")?.value).toBe("PSH, ACK");
 
@@ -70,7 +88,11 @@ describe("dissectFrame", () => {
     const nodes = dissectFrame(cut, ETHERNET);
 
     expect(nodes.map((node) => node.label)).toEqual(["Ethernet", "IPv4"]);
-    expect(nodes[1]).toMatchObject({ value: "truncated: 6 of 20 header bytes captured", offset: 14, len: 6 });
+    expect(nodes[1]).toMatchObject({
+      value: "truncated: 6 of 20 header bytes captured",
+      offset: 14,
+      len: 6,
+    });
     expect(nodes[1]?.children).toBeUndefined();
 
     // A header that DECLARES more than was captured (IHL 15, but 20 bytes on hand) must not put the layer
@@ -110,7 +132,12 @@ describe("dissectFrame", () => {
     // say `::ffff:c000:201`, and the tree would disagree with the column it is supposed to be rendering.
     const mapped = [...Array(10).fill(0), 0xff, 0xff, ...ip4("192.0.2.1")];
     const mappedNodes = dissectFrame(
-      frame(ETH_HEADER, be(0x86dd), [0x60, 0, 0, 0, ...be(8), 17, 64, ...mapped, ...mapped], udpHeader),
+      frame(
+        ETH_HEADER,
+        be(0x86dd),
+        [0x60, 0, 0, 0, ...be(8), 17, 64, ...mapped, ...mapped],
+        udpHeader,
+      ),
       ETHERNET,
     );
     expect(child(mappedNodes, "IPv6", "Source Address")?.value).toBe("::ffff:192.0.2.1");
@@ -119,9 +146,20 @@ describe("dissectFrame", () => {
     // as UDP would put a port in the tree that the Source column does not have.
     const fragment = [17, 0, ...be(2 << 3), 0, 0, 0, 1];
     const later = dissectFrame(
-      frame(ETH_HEADER, be(0x86dd), [0x60, 0, 0, 0, ...be(16), 44, 64, ...address, ...address], fragment, udpHeader),
+      frame(
+        ETH_HEADER,
+        be(0x86dd),
+        [0x60, 0, 0, 0, ...be(16), 44, 64, ...address, ...address],
+        fragment,
+        udpHeader,
+      ),
       ETHERNET,
     );
-    expect(later.map((node) => node.label)).toEqual(["Ethernet", "IPv6", "IPv6 Fragment", "Payload"]);
+    expect(later.map((node) => node.label)).toEqual([
+      "Ethernet",
+      "IPv6",
+      "IPv6 Fragment",
+      "Payload",
+    ]);
   });
 });

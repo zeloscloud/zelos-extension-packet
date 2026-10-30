@@ -6,12 +6,22 @@ import {
   useWorkspace,
   useZelosBridge,
 } from "@zeloscloud/app-extension-sdk/react";
-import type { IRowNode, ModelUpdatedEvent, RowClickedEvent, RowSelectionOptions } from "ag-grid-community";
+import type {
+  IRowNode,
+  ModelUpdatedEvent,
+  RowClickedEvent,
+  RowSelectionOptions,
+} from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildPacketColumnDefs } from "./columns";
 import type { PacketRow } from "./data";
-import { fetchPacketEventFields, PACKET_EVENT_FIELDS, PacketEventGoneError, packetRowJson } from "./event-fetch";
+import {
+  fetchPacketEventFields,
+  PACKET_EVENT_FIELDS,
+  PacketEventGoneError,
+  packetRowJson,
+} from "./event-fetch";
 import { parsePacketFilter } from "./filter";
 import { PacketFilterBar } from "./filter-bar";
 import { PacketFrameDrawer, useFrameQuery } from "./frame-drawer";
@@ -81,7 +91,8 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
 
   // A source node binds all its captures, whose rows interleave; `needsProducerDisambiguation` counts agents.
   const bindsMultipleStreams = useMemo(
-    () => new Set(packetSignals.map((signal) => `${signal.source}\u0000${signal.message}`)).size > 1,
+    () =>
+      new Set(packetSignals.map((signal) => `${signal.source}\u0000${signal.message}`)).size > 1,
     [packetSignals],
   );
 
@@ -103,16 +114,21 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
 
   const reportError = useCallback(
     (title: string, cause: unknown) => {
-      actions.toast({ tone: "error", title, description: errorMessage(cause) }).catch((failure: unknown) => {
-        console.warn(`[packet-list] ${title}`, cause, failure);
-      });
+      actions
+        .toast({ tone: "error", title, description: errorMessage(cause) })
+        .catch((failure: unknown) => {
+          console.warn(`[packet-list] ${title}`, cause, failure);
+        });
     },
     [actions],
   );
 
   // Through AG Grid's external-filter hooks, so it composes with the search; an invalid expression applies nothing.
   const [filterText, setFilterText] = useState("");
-  const parsedFilter = useMemo(() => parsePacketFilter(filterText, queryFields), [filterText, queryFields]);
+  const parsedFilter = useMemo(
+    () => parsePacketFilter(filterText, queryFields),
+    [filterText, queryFields],
+  );
   const predicate = parsedFilter.ok ? parsedFilter.predicate : null;
 
   // Through a ref: AG Grid holds these callbacks, and a new identity per keystroke would rebuild its pipeline.
@@ -150,7 +166,7 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
   });
   // Scrolled off a live tail, the window holds still: at packet rates it would rotate out from under the reader.
   const detachedFromLiveTail = follow !== undefined && live && time?.playback === "LIVE";
-  useEffect(() => setFrozen(detachedFromLiveTail), [detachedFromLiveTail]);
+  if (frozen !== detachedFromLiveTail) setFrozen(detachedFromLiveTail);
 
   const onModelUpdated = useCallback(
     (event: ModelUpdatedEvent<PacketRow>) => {
@@ -164,7 +180,10 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
   // Only an elapsed time's width follows the data's ends.
   const startS = timeMode === "relative" ? (time?.dataRange?.startS ?? 0) : 0;
   const endS = timeMode === "relative" ? (time?.dataRange?.endS ?? 0) : 0;
-  const timeWidth = useMemo(() => timeColumnWidth(timeMode, fontSize, startS, endS), [timeMode, fontSize, startS, endS]);
+  const timeWidth = useMemo(
+    () => timeColumnWidth(timeMode, fontSize, startS, endS),
+    [timeMode, fontSize, startS, endS],
+  );
   const columnDefs = useMemo(
     () => buildPacketColumnDefs({ timeMode, fields: visibleFields, timeWidth }),
     [timeMode, visibleFields, timeWidth],
@@ -204,7 +223,10 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
       try {
         json = packetRowJson(row, await fields);
       } catch (error) {
-        reportError("Couldn't copy the packet", error instanceof PacketEventGoneError ? PACKET_GONE : error);
+        reportError(
+          "Couldn't copy the packet",
+          error instanceof PacketEventGoneError ? PACKET_GONE : error,
+        );
         return;
       }
       await actions.copyText(JSON.stringify(json), "Row copied as JSON");
@@ -216,7 +238,10 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
   const canViewFrame = useCallback(
     (row: PacketRow) =>
       packetSignals.some(
-        (signal) => signal.signal === "frame" && signal.source === row.source && signal.message === row.message,
+        (signal) =>
+          signal.signal === "frame" &&
+          signal.source === row.source &&
+          signal.message === row.message,
       ),
     [packetSignals],
   );
@@ -225,9 +250,14 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
     (target: PacketMenuTarget, point: { x: number; y: number }) => {
       const run = async () => {
         // Fetched while the menu is open: the host copies only in answer to the click that chose the item.
-        const fields = bridge ? fetchPacketEventFields(bridge, target.row, PACKET_EVENT_FIELDS, live) : null;
+        const fields = bridge
+          ? fetchPacketEventFields(bridge, target.row, PACKET_EVENT_FIELDS, live)
+          : null;
         fields?.catch(() => {});
-        const choice = await actions.showMenu({ ...point, items: packetMenuItems(target, canViewFrame(target.row)) });
+        const choice = await actions.showMenu({
+          ...point,
+          items: packetMenuItems(target, canViewFrame(target.row)),
+        });
         switch (choice) {
           case PACKET_MENU.setCursor:
             onSetCursor(target.row.timeS);
@@ -255,7 +285,11 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
       error={error}
       search={search}
       toolbar={
-        <PacketFilterBar value={filterText} onChange={setFilterText} error={parsedFilter.ok ? null : parsedFilter} />
+        <PacketFilterBar
+          value={filterText}
+          onChange={setFilterText}
+          error={parsedFilter.ok ? null : parsedFilter}
+        />
       }
       follow={follow}
       footer={

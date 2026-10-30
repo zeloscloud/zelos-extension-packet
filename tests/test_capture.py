@@ -314,8 +314,7 @@ class TestRemediationText:
         text = capture_grant_instructions()
         assert FAKE_REMEDIATION in text
         assert "Replay PCAP File" in text
-        # ...pinned to this interpreter: the package writes the command with
-        # `$(command -v python3)`, which is not the agent's extension env.
+        # A native command written with `$(command -v python3)` is not the agent's extension env.
         assert f"sudo {sys.executable} -m zelos_packet install-helper" in text
 
     def test_linux_names_the_bootstrap_with_the_running_interpreter(self):
@@ -324,12 +323,11 @@ class TestRemediationText:
         text = builtin_grant_instructions(system="Linux", executable="/usr/bin/python3.11")
         assert "sudo /usr/bin/python3.11 -m zelos_packet install-helper" in text
         assert "/usr/bin/python3.11 -m zelos_packet status" in text
-        assert "setcap" not in text, "the interpreter grant is gone"
+        assert "setcap" not in text, "the helper holds the capability, not the interpreter"
         assert "CAP_NET_ADMIN" not in text, "unnecessary for wired capture"
 
     def test_macos_names_the_same_bootstrap(self):
-        """One grant flow, not two: this must not drift back into a
-        hand-rolled chgrp/chmod recipe that zelos-packet no longer performs."""
+        """One grant flow, not two: the package's helper, never a hand-rolled chgrp/chmod recipe."""
         text = builtin_grant_instructions(system="Darwin", executable="/opt/py/bin/python3")
         assert "/dev/bpf*" in text
         assert "sudo /opt/py/bin/python3 -m zelos_packet install-helper" in text

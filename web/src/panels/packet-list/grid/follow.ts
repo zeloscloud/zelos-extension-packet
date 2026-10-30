@@ -1,6 +1,6 @@
 import type { SortOrder } from "@zeloscloud/app-extension-sdk";
 import type { BodyScrollEvent, GridApi, IRowNode } from "ag-grid-community";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useInsertionEffect, useMemo, useRef, useState } from "react";
 import { readSession, sessionKey, writeSession } from "./session";
 
 /** Runs `onChange` when `value` changes; in an effect, since StrictMode's double render corrupts a render latch. */
@@ -40,7 +40,10 @@ const viewportKey = (sessionId: string) => sessionKey(sessionId, "viewport");
 function readParkedViewport(sessionId: string): ParkedViewport | undefined {
   const stored = readSession<Partial<ParkedViewport>>(viewportKey(sessionId));
   if (stored === null || typeof stored.following !== "boolean") return undefined;
-  return { following: stored.following, topRowId: typeof stored.topRowId === "string" ? stored.topRowId : null };
+  return {
+    following: stored.following,
+    topRowId: typeof stored.topRowId === "string" ? stored.topRowId : null,
+  };
 }
 
 function parkViewport(sessionId: string, patch: Partial<ParkedViewport>): void {
@@ -79,7 +82,8 @@ function landedRowIdOf(api: GridApi, target: IRowNode): string | null {
   const viewport = api.getVerticalPixelRange();
   if (target.rowTop == null) return null;
   if (isRowInViewport(viewport, target.rowTop, target.rowHeight ?? 0)) return target.id ?? null;
-  const inView = (rowTop: number, rowHeight: number) => isRowInViewport(viewport, rowTop, rowHeight);
+  const inView = (rowTop: number, rowHeight: number) =>
+    isRowInViewport(viewport, rowTop, rowHeight);
   return edgeRenderedRowId(api, inView, target.rowTop >= viewport.bottom);
 }
 
@@ -132,8 +136,9 @@ export function useGridFollow<TRow extends { id: string }>({
   rowHeight,
 }: GridFollowOptions<TRow>): GridFollow<TRow> {
   // Read once, at mount: the new grid's own events overwrite the parked row before its rows render.
-  const reopenRef = useRef(readParkedViewport(sessionId));
-  const [follow, setFollow] = useState(() => reopenRef.current?.following ?? true);
+  const [parked] = useState(() => readParkedViewport(sessionId));
+  const reopenRef = useRef(parked);
+  const [follow, setFollow] = useState(() => parked?.following ?? true);
   // Until the new grid's first rows render, its viewport sits at the top and measures nothing real.
   const renderedRef = useRef(false);
   // Follow as of now, for grid events that run before React re-renders.
@@ -235,7 +240,10 @@ export function useGridFollow<TRow extends { id: string }>({
     }
     // Where it landed, not where it aimed: a chase clamped short of new rows pins the old tail, still in view.
     pinnedTailIdRef.current = target ? landedRowIdOf(api, target) : null;
-    chasedTopsRef.current = [...chasedTopsRef.current.slice(-(CHASED_TOPS_KEPT - 1)), api.getVerticalPixelRange().top];
+    chasedTopsRef.current = [
+      ...chasedTopsRef.current.slice(-(CHASED_TOPS_KEPT - 1)),
+      api.getVerticalPixelRange().top,
+    ];
   }, [newestRowId, tailOrder, getGridApi]);
 
   // A cleared cursor re-derives follow rather than forcing it on, which would yank a reader who scrolled off.
@@ -257,25 +265,43 @@ export function useGridFollow<TRow extends { id: string }>({
     scrollToRow,
     settle,
   });
-  latest.current = { cursorRowId, isTailFollowing, isAttached, isStillFollowing, scrollToTail, scrollToRow, settle };
+  useInsertionEffect(() => {
+    latest.current = {
+      cursorRowId,
+      isTailFollowing,
+      isAttached,
+      isStillFollowing,
+      scrollToTail,
+      scrollToRow,
+      settle,
+    };
+  });
 
   const gridEvents = useMemo<GridFollowEvents<TRow>>(
     () => ({
       onBodyScroll: (event) => {
         const api = getGridApi();
         if (event.direction === "horizontal" || !api || !renderedRef.current) return;
-        const attached = followRef.current ? latest.current.isStillFollowing() : latest.current.isAttached();
+        const attached = followRef.current
+          ? latest.current.isStillFollowing()
+          : latest.current.isAttached();
         setFollowNow(attached);
         parkViewport(sessionId, { following: attached, topRowId: topRowIdOf(api) });
       },
       onFirstDataRendered: () => {
         renderedRef.current = true;
-        const { cursorRowId: cursor, isTailFollowing: tailing, scrollToRow: reveal, settle: park } = latest.current;
+        const {
+          cursorRowId: cursor,
+          isTailFollowing: tailing,
+          scrollToRow: reveal,
+          settle: park,
+        } = latest.current;
         // Once: a grid remounting inside a living panel (a new query window) starts fresh.
         const reopen = reopenRef.current;
         reopenRef.current = undefined;
         // Left scrolled back, or tracking nothing: the row the reader was on, while the window still holds it.
-        const leftWhereTheyRead = reopen && (!reopen.following || (!tailing && cursor === undefined));
+        const leftWhereTheyRead =
+          reopen && (!reopen.following || (!tailing && cursor === undefined));
         if (leftWhereTheyRead && reopen.topRowId && reveal(reopen.topRowId, "top")) return;
         // Else the row it follows: at another height, the old top row may no longer show it.
         if (tailing) {
@@ -302,7 +328,8 @@ export function useGridFollow<TRow extends { id: string }>({
         parkViewport(sessionId, { following: isNowAttached, topRowId: topRowIdOf(api) });
       },
       onGridSizeChanged: () => {
-        if (followRef.current && latest.current.isTailFollowing && renderedRef.current) latest.current.scrollToTail();
+        if (followRef.current && latest.current.isTailFollowing && renderedRef.current)
+          latest.current.scrollToTail();
       },
     }),
     [getGridApi, sessionId, setFollowNow],

@@ -1,4 +1,8 @@
-import type { AppBridgePanelSignal as PanelSignal, ColumnMetadata, QueryDataMulti } from "@zeloscloud/app-extension-sdk";
+import type {
+  AppBridgePanelSignal as PanelSignal,
+  ColumnMetadata,
+  QueryDataMulti,
+} from "@zeloscloud/app-extension-sdk";
 import { describe, expect, it } from "vitest";
 import { meltPacketRows, packetsLackFrameNumbers } from "../data";
 
@@ -143,7 +147,15 @@ describe("meltPacketRows", () => {
         [null, "eth0"],
       ]),
       "asc",
-      [...SIGNALS, { source: "pkt", message: "eth0/stats", signal: "iface", color: "" } as unknown as PanelSignal],
+      [
+        ...SIGNALS,
+        {
+          source: "pkt",
+          message: "eth0/stats",
+          signal: "iface",
+          color: "",
+        } as unknown as PanelSignal,
+      ],
       "absolute",
     );
 
@@ -151,10 +163,15 @@ describe("meltPacketRows", () => {
   });
 
   it("tells a window from an older extension, whose packets carry no frame numbers, apart from an empty one", () => {
-    expect(packetsLackFrameNumbers(dataset([TIME_COL, col({ signal: "orig_len" })], [[1], [74]]))).toBe(true);
+    expect(
+      packetsLackFrameNumbers(dataset([TIME_COL, col({ signal: "orig_len" })], [[1], [74]])),
+    ).toBe(true);
     expect(
       packetsLackFrameNumbers(
-        dataset([TIME_COL, col({ signal: "orig_len" }), col({ signal: "frame_no" })], [[1], [74], [1]]),
+        dataset(
+          [TIME_COL, col({ signal: "orig_len" }), col({ signal: "frame_no" })],
+          [[1], [74], [1]],
+        ),
       ),
     ).toBe(false);
     expect(packetsLackFrameNumbers(dataset([TIME_COL], [[]]))).toBe(false);

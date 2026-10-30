@@ -16,7 +16,8 @@ function DissectRow({
   selection: ByteRange | null;
   onSelect: (range: ByteRange) => void;
 }) {
-  const isSelected = selection !== null && selection.offset === node.offset && selection.len === node.len;
+  const isSelected =
+    selection !== null && selection.offset === node.offset && selection.len === node.len;
   return (
     <>
       <button
@@ -56,7 +57,13 @@ interface PacketDissectViewProps {
   origLen?: number | undefined;
 }
 
-export function PacketDissectView({ hex, linkType, truncated, capLen, origLen }: PacketDissectViewProps) {
+export function PacketDissectView({
+  hex,
+  linkType,
+  truncated,
+  capLen,
+  origLen,
+}: PacketDissectViewProps) {
   const [selection, setSelection] = useState<ByteRange | null>(null);
   const nodes = useMemo(() => dissectFrame(parseFrameHex(hex), linkType), [hex, linkType]);
 

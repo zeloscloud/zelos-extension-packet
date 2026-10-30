@@ -2,7 +2,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ICellRendererParams } from "ag-grid-community";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { GridCell, GridPanelBody, GridStatusStrip, GridTextCell, windowStatus } from "../grid/chrome";
+import {
+  GridCell,
+  GridPanelBody,
+  GridStatusStrip,
+  GridTextCell,
+  windowStatus,
+} from "../grid/chrome";
 
 const SEARCH = { value: "", onChange: () => {}, onClear: () => {} };
 
@@ -116,14 +122,19 @@ describe("GridCell", () => {
   it("highlights the search terms inside a string cell", () => {
     const { container } = withSearch("tcp", <GridCell>TCP retransmission</GridCell>);
 
-    expect([...container.querySelectorAll(".search-hit")].map((hit) => hit.textContent)).toEqual(["TCP"]);
+    expect([...container.querySelectorAll(".search-hit")].map((hit) => hit.textContent)).toEqual([
+      "TCP",
+    ]);
     expect(container.querySelector(".cell-text")?.textContent).toBe("TCP retransmission");
   });
 
   it("highlights each literal run of a glob, and not the wildcards", () => {
     const { container } = withSearch("*443*SYN*", <GridCell>51514 → 443 [SYN]</GridCell>);
 
-    expect([...container.querySelectorAll(".search-hit")].map((hit) => hit.textContent)).toEqual(["443", "SYN"]);
+    expect([...container.querySelectorAll(".search-hit")].map((hit) => hit.textContent)).toEqual([
+      "443",
+      "SYN",
+    ]);
   });
 
   it("keeps a highlighted string one run of text, spaces and all", () => {
@@ -171,18 +182,26 @@ describe("GridCell", () => {
       </>,
     );
 
-    expect([...container.querySelectorAll(".search-hit")].map((hit) => hit.textContent)).toEqual(["53", "53", "53"]);
+    expect([...container.querySelectorAll(".search-hit")].map((hit) => hit.textContent)).toEqual([
+      "53",
+      "53",
+      "53",
+    ]);
   });
 });
 
 describe("GridTextCell", () => {
   it("prefers the column's formatted text over the raw value", () => {
-    render(<GridTextCell {...cellParams({ data: { id: "r1" }, value: 1, valueFormatted: "ICMP" })} />);
+    render(
+      <GridTextCell {...cellParams({ data: { id: "r1" }, value: 1, valueFormatted: "ICMP" })} />,
+    );
     expect(screen.getByText("ICMP")).toBeTruthy();
   });
 
   it("renders a null value as empty, never as the string 'null'", () => {
-    const { container } = render(<GridTextCell {...cellParams({ data: { id: "r1" }, value: null })} />);
+    const { container } = render(
+      <GridTextCell {...cellParams({ data: { id: "r1" }, value: null })} />,
+    );
     expect(container.textContent).toBe("");
   });
 
@@ -194,7 +213,9 @@ describe("GridTextCell", () => {
 
 describe("the status strip", () => {
   it("joins its parts with a dot, and renders nothing with nothing to say", () => {
-    const { container, rerender } = render(<GridStatusStrip testId="strip" parts={["a", false, "b"]} />);
+    const { container, rerender } = render(
+      <GridStatusStrip testId="strip" parts={["a", false, "b"]} />,
+    );
     expect(screen.getByTestId("strip").textContent).toBe("a · b");
 
     rerender(<GridStatusStrip testId="strip" parts={[false, null]} />);

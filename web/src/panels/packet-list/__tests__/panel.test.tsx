@@ -97,7 +97,10 @@ const signal = (name: string, message = "pkt"): PanelSignal => ({
 /** What an event-level drop binds: every field of the event, `frame` included. */
 const SIGNALS: PanelSignal[] = [signal("info"), signal("frame")];
 
-function panel(options: Record<string, unknown> | null = null, signals = SIGNALS): AppBridgePanelInfo {
+function panel(
+  options: Record<string, unknown> | null = null,
+  signals = SIGNALS,
+): AppBridgePanelInfo {
   return {
     panelId: "packet-list",
     instanceId: "panel-1",
@@ -115,7 +118,8 @@ function mount(target = panel(), needsProducerDisambiguation = false) {
 }
 
 /** Right-click a cell, exactly as the panel's context menu sees it: through the rendered DOM. */
-const rightClick = (colId: string, rowIndex: number) => fireEvent.contextMenu(gridCell(colId, rowIndex));
+const rightClick = (colId: string, rowIndex: number) =>
+  fireEvent.contextMenu(gridCell(colId, rowIndex));
 
 /** The labels of the menu the panel asked the host to draw. */
 const menuLabels = async (): Promise<string[]> => {
@@ -141,7 +145,8 @@ function timeState(over: Partial<AppBridgeTimeInfo>): AppBridgeTimeInfo {
 const frozen = (): unknown => usePacketDataMock.mock.calls.at(-1)?.[3];
 
 /** The field set the panel handed the data hook: the subscription's projection. */
-const projectedFields = (): PacketField[] => [...(usePacketDataMock.mock.calls[0]?.[2] as Set<PacketField>)].sort();
+const projectedFields = (): PacketField[] =>
+  [...(usePacketDataMock.mock.calls[0]?.[2] as Set<PacketField>)].sort();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -151,7 +156,12 @@ beforeEach(() => {
   sdk.actions.copyText.mockResolvedValue(null);
   sdk.actions.toast.mockResolvedValue(null);
   sdk.actions.setCursor.mockResolvedValue(null);
-  usePacketDataMock.mockReturnValue({ rows: ROWS, totalRows: ROWS.length, isLoading: false, error: null });
+  usePacketDataMock.mockReturnValue({
+    rows: ROWS,
+    totalRows: ROWS.length,
+    isLoading: false,
+    error: null,
+  });
   usePacketStatsMock.mockReturnValue(null);
   fetchMock.mockResolvedValue({ frame: "0x4142", orig_len: 74 });
 });
@@ -160,17 +170,31 @@ describe("PacketListPanel", () => {
   // The capture node binds both events; the stats signals never reach the grid, they feed the strip.
   it("hands the grid only the packet signals and shows the stats strip from the rest", () => {
     const stats = { ...signal("pps", "pkt/stats"), eventType: "zelos.packet.stats.v1" };
-    usePacketStatsMock.mockReturnValue("Packets 1,500 · Dropped 2 kernel / 0 agent · 120 pps · 1.5 Mbit/s");
+    usePacketStatsMock.mockReturnValue(
+      "Packets 1,500 · Dropped 2 kernel / 0 agent · 120 pps · 1.5 Mbit/s",
+    );
     mount(panel(null, [...SIGNALS, stats]));
-    expect(usePacketDataMock).toHaveBeenCalledWith(SIGNALS, expect.any(Number), expect.any(Set), false);
+    expect(usePacketDataMock).toHaveBeenCalledWith(
+      SIGNALS,
+      expect.any(Number),
+      expect.any(Set),
+      false,
+    );
     expect(usePacketStatsMock).toHaveBeenCalledWith([stats]);
     expect(screen.getByTestId("packet-stats-strip").textContent).toContain("Packets 1,500");
   });
 
   it("says how much of the window the buffer holds, so a filter over it is not mistaken for the whole", () => {
-    usePacketDataMock.mockReturnValue({ rows: ROWS, totalRows: 48_213, isLoading: false, error: null });
+    usePacketDataMock.mockReturnValue({
+      rows: ROWS,
+      totalRows: 48_213,
+      isLoading: false,
+      error: null,
+    });
     mount(panel(null, SIGNALS));
-    expect(screen.getByTestId("packet-window-status").textContent).toBe(`window: newest ${ROWS.length} of 48,213 rows`);
+    expect(screen.getByTestId("packet-window-status").textContent).toBe(
+      `window: newest ${ROWS.length} of 48,213 rows`,
+    );
   });
 
   it("shows no strip when nothing answers for the stats", () => {
@@ -268,9 +292,16 @@ describe("PacketListPanel — the cell menu", () => {
     rightClick("info", 0);
 
     const labels = await menuLabels();
-    expect(labels).toEqual(["Set cursor here", "Copy value", "Copy row as JSON", "View frame bytes"]);
+    expect(labels).toEqual([
+      "Set cursor here",
+      "Copy value",
+      "Copy row as JSON",
+      "View frame bytes",
+    ]);
     // The host draws each item with its icon; the cursor item stands apart from the packet's own items.
-    const items = (sdk.actions.showMenu.mock.calls.at(-1)?.[0] as { items: Array<Record<string, unknown>> }).items;
+    const items = (
+      sdk.actions.showMenu.mock.calls.at(-1)?.[0] as { items: Array<Record<string, unknown>> }
+    ).items;
     expect(items.map((item) => item.icon)).toEqual(["cursor", "copy", "json", "bytes"]);
     expect(items.map((item) => item.separatorAfter ?? false)).toEqual([true, false, false, false]);
     expect(labels).not.toContain("Display format");
@@ -362,7 +393,13 @@ describe("PacketListPanel — the cell menu", () => {
     expect(toast).toBe("Row copied as JSON");
     const json = JSON.parse(text) as Record<string, unknown>;
     expect(Object.keys(json)).toEqual(["time_s", ...PACKET_EVENT_FIELDS, "producer", "trace"]);
-    expect(json).toMatchObject({ time_s: 10, frame: "0x4142", orig_len: 74, info: null, trace: "/caps/a.trz" });
+    expect(json).toMatchObject({
+      time_s: 10,
+      frame: "0x4142",
+      orig_len: 74,
+      info: null,
+      trace: "/caps/a.trz",
+    });
   });
 
   it("copies the text the right-clicked cell shows", async () => {
@@ -370,7 +407,9 @@ describe("PacketListPanel — the cell menu", () => {
     mount();
     rightClick("source", 1);
 
-    await vi.waitFor(() => expect(sdk.actions.copyText).toHaveBeenCalledWith("10.0.0.1:53", "Value copied"));
+    await vi.waitFor(() =>
+      expect(sdk.actions.copyText).toHaveBeenCalledWith("10.0.0.1:53", "Value copied"),
+    );
   });
 });
 
