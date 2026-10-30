@@ -2,7 +2,7 @@
 
 Live network capture and pcap decode, in your Zelos workspace.
 
-- 📡 **Capture any NIC** — Linux and macOS, several interfaces at once
+- 📡 **Capture any NIC** — Linux and Apple silicon Macs, several interfaces at once
 - 🔍 **Every packet as a row** — addresses, ports, protocol, flags, and the raw bytes
 - 🧭 **Drag into a Packet List** — Wireshark-style list, filter as you type
 - 📈 **Plot the capture itself** — packet and byte rates, kernel drops
@@ -39,8 +39,8 @@ opens any trace that holds packets.
 ## Quick start
 
 ```bash
-zelos extensions install packet
-zelos extensions start packet --config '{"interfaces": [{"interface": "en0"}]}'
+zelos extensions install zeloscloud/zelos-extension-packet
+zelos extensions start zeloscloud.zelos-extension-packet --config '{"interfaces": [{"interface": "en0"}]}'
 ```
 
 If the rights above are missing, the extension stops on start and logs the exact command to fix it.
@@ -48,7 +48,7 @@ If the rights above are missing, the extension stops on start and logs the exact
 Decoding a file needs no privileges and no NIC:
 
 ```bash
-zelos extensions start packet --config '{"replay_pcap": "capture.pcapng"}'
+zelos extensions start zeloscloud.zelos-extension-packet --config '{"advanced": {"replay_pcap": "capture.pcapng"}}'
 ```
 
 Captures appear in the tree under **Packet → your interface → packets**. Drag that node into
@@ -141,4 +141,4 @@ uv run zelos-extension-packet convert tap.pcapng --arxml ecu.arxml  # with SOME/
 - [Documentation](https://docs.zeloscloud.io)
 - [Issues](https://github.com/zeloscloud/zelos-extension-packet/issues)
 
-Apache-2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
