@@ -8,8 +8,8 @@ supervisor drives.
 both platforms. The helper holds whatever privilege the open needs, drops it
 before it reads a byte on Linux, and streams decoded rows straight to the
 agent over its own SDK connection. Nothing passes through this
-  process, so no source is handed over and the permission verdict arrives at
-  Start rather than at construction.
+process, so no source is handed over and the permission verdict arrives at
+Start rather than at construction.
 
 Every session writes into ONE trace source, ``Packet``, and is told apart by
 its name, which becomes the prefix of its two events - so the tree reads
@@ -31,8 +31,7 @@ from typing import Any
 
 from . import pkg
 
-# `ConfigError` is defined in `agent_filter` (which imports nothing from here)
-# and re-exported, so endpoint resolution can raise it without an import cycle.
+# Re-exported from `agent_filter`, so endpoint resolution raises it without an import cycle.
 from .agent_filter import AgentEndpoint, ConfigError, agent_url
 
 logger = logging.getLogger(__name__)
@@ -44,15 +43,10 @@ AUTOETH_SNAPLEN = 1518
 DEFAULT_BUFFER_SIZE = 8 * 1024 * 1024
 DEFAULT_PROMISCUOUS = False
 #: Bytes of each packet stored in the `frame` column. `None` stores every
-#: captured byte, deliberately diverging from `zelos_packet`'s 256 default:
-#: the extension already bounds its byte budget with `DEFAULT_SNAPLEN` (512,
-#: chosen to keep the control plane byte-complete), and storing less than we
-#: capture would defeat that rationale.
+#: captured byte, which `DEFAULT_SNAPLEN` already bounds.
 DEFAULT_STORED_FRAME_BYTES: int | None = None
 
-#: The one trace source every capture writes into. Sessions are told apart by
-#: their event-name prefix, not by source; see the module docstring. Equals
-#: `ACTION_PREFIX`: one user-visible name for actions and catalog paths alike.
+#: The one trace source every capture writes into; equals `ACTION_PREFIX`.
 PACKET_SOURCE_NAME = "Packet"
 
 #: Sources of the ARXML-decoded SOME/IP events (`<Service>/<Element>`) and
@@ -64,14 +58,8 @@ PDU_SOURCE_NAME = "PDU"
 DEFAULT_SOMEIP_SD_PORT = 30490
 DEFAULT_DOIP_PORT = 13400
 
-#: Catalog path separators. A VLAN interface is literally named `eth0.100`, so
-#: this is not hypothetical: an unsanitized name breaks `agent.latest` lookups.
-#: `/` is here too - it would graft extra levels onto the tree under `packet`.
-#:
-#: Fallback only. `zelos_packet.sanitize_name` is the single home for the rule
-#: (`sanitize_capture_name` prefers it); this keeps config parsing working when
-#: the native package is not importable, which is when a user most needs a
-#: legible config error rather than a second failure.
+#: Catalog path separators (a VLAN interface is named `eth0.100`), for when
+#: `zelos_packet.sanitize_name` cannot load.
 _PATH_SEPARATORS = re.compile(r"[.:@/\s]+")
 
 #: `zelos_packet.CaptureStats` getters, in full.
@@ -88,10 +76,7 @@ STATS_FIELDS = (
     "fallback_timestamps",
 )
 
-#: Every `zelos_packet.Metrics` getter except `emit_stall_ns` (redundant with
-#: the `_ms` form). Complete on purpose: this feeds a diagnostic action, and
-#: `flush_errors`/`drain_abandoned` are the only in-band signal of the two
-#: warn-only loss windows (each flush_error may be up to 255 rows).
+#: Every `zelos_packet.Metrics` getter except `emit_stall_ns`, which the `_ms` form repeats.
 METRICS_FIELDS = (
     "packets_received",
     "packets_emitted",
@@ -165,6 +150,9 @@ class AutoEthConfig:
         }
 
 
+DEFAULT_AUTOETH = AutoEthConfig()
+
+
 def resolve_arxml(raw: str | Path) -> Path:
     """An ARXML path, `~` expanded and relative to the working directory.
 
@@ -224,7 +212,7 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
     `DEFAULT_SNAPLEN`.
 
     Defaults are applied here as well as in the JSON Schema, so CLI callers -
-    which never go through `load_config` - get identical behaviour.
+    which never go through `load_config` - get identical behavior.
 
     Raises:
         ConfigError: on a missing interface name or a duplicate capture name.
@@ -285,9 +273,6 @@ def parse_interfaces(config: dict) -> list[InterfaceConfig]:
 
 
 # ─── Permission remediation ─────────────────────────────────────────────────
-#
-# Kept as a pure function so it is testable at the helper seam, without opening
-# a socket or shelling out.
 
 _REPLAY_HINT = (
     "No capture rights on this machine? Set 'Replay PCAP File' in the extension\n"
@@ -333,16 +318,7 @@ at login. Check the grant with:
     {executable} -m zelos_packet status
 """
     elif system == "Darwin":
-        # Same command, same order, as zelos-packet's own
-        # `permission_remediation()` (rs/capture/error.rs) - one grant flow,
-        # not two. The access_bpf group is back, deliberately: it is what
-        # Wireshark's ChmodBPF uses, so the two products' boot daemons agree
-        # on the group instead of last-writer-wins. Its logout requirement is
-        # no longer a trap because the text now states it.
-        #
-        # The SEND caveat is genuinely platform-specific and stays only here:
-        # /dev/bpf* is opened read-write, while the Linux grant gives the
-        # helper a capability it drops and never a socket it hands out.
+        # The SEND caveat is macOS-only: /dev/bpf* opens read-write.
         body = f"""
 Live capture reads /dev/bpf*, which is root-only by default on macOS. Grant
 access once, per machine:
@@ -389,15 +365,10 @@ def capture_grant_instructions(
     if resolved == platform.system():
         native = pkg.permission_remediation().strip()
         if native:
-            # No bootstrap to name on a platform with no capture path - there
-            # the native text says "unsupported", and a sudo command under it
-            # would contradict it.
             gap = _session_group_gap(resolved)
             parts = [gap] if gap else []
             parts.append(native)
             # Only when the native text has not already named this interpreter.
-            # It fills the command from `sys.executable` now, so on a current
-            # zelos-packet the hint would print the same sudo line twice.
             hint = _this_interpreter_hint(executable)
             if resolved in ("Linux", "Darwin") and _command_of(hint) not in native:
                 parts.append(hint)
@@ -409,9 +380,7 @@ def capture_grant_instructions(
     return builtin_grant_instructions(system=system, executable=executable)
 
 
-#: The Linux group `zelos_packet install-helper` puts the helper in. Mirrors
-#: `LINUX_GROUP` in zelos_packet's own CLI; a rename there is a grant change
-#: that needs this side updated too.
+#: The Linux group `zelos_packet install-helper` puts the helper in.
 LINUX_CAPTURE_GROUP = "zelos-packet"
 
 
@@ -453,10 +422,7 @@ def _session_group_gap(system: str | None = None) -> str | None:
     )
 
 
-#: The step every grant needs and the native text states only in passing. It
-#: cost a machine reboot to discover, so it gets its own numbered block rather
-#: than a clause: a new group reaches a process only through a NEW login
-#: session, and relaunching the app from the old one changes nothing.
+#: A new group reaches a process only through a new login session.
 _SESSION_STEP = """After granting, your current login session still does not have the new group.
 Closing and reopening Zelos is NOT enough:
 
@@ -476,11 +442,10 @@ def _command_of(hint: str) -> str:
 def _this_interpreter_hint(executable: str | None = None) -> str:
     """Pin the native text's bootstrap command to the interpreter that failed.
 
-    The package writes the command as `sudo "$(command -v python3)" ...`, which
-    is right for someone who hit the error in their own venv and wrong here:
-    the agent's extension environment is not on the user's PATH, so pasting it
-    into a terminal grants the *system* python, which cannot import
-    `zelos_packet`. Naming the absolute path is the whole fix.
+    A command written as `sudo "$(command -v python3)" ...` is right for someone
+    who hit the error in their own venv and wrong here: the agent's extension
+    environment is not on the user's PATH, so pasting it into a terminal grants
+    the *system* python, which cannot import `zelos_packet`.
     """
     return (
         "The extension runs under this interpreter, so run exactly:\n\n"
@@ -554,9 +519,7 @@ def make_trace_source(namespace: Any = None, *, cached: bool = True) -> Any:
     if namespace is not None:
         return factory(PACKET_SOURCE_NAME, namespace=namespace)
 
-    # The first live caller's `cached` choice wins for the rest of the
-    # process. Every live caller asks for a cache today; forking a second
-    # source to honor a different answer is the failure this exists to stop.
+    # The first live caller's `cached` choice wins: a second source under one name hides rows.
     global _live_source
     if _live_source is None:
         _live_source = factory(PACKET_SOURCE_NAME, namespace=None)
@@ -589,7 +552,6 @@ class CaptureSession:
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES
     autoeth: AutoEthConfig = AutoEthConfig()
     _capture: Any = field(default=None, init=False, repr=False)
-    _source: Any = field(default=None, init=False, repr=False)
 
     @property
     def name(self) -> str:
@@ -599,8 +561,8 @@ class CaptureSession:
         """Arguments handed to ``PacketCapture``. Split out so tests can assert
         the exclusion parameters without constructing anything.
 
-        Keyword names are the native ones (``api/py/zelos-packet/rs/lib.rs``);
-        the package is pinned `==`, so there is nothing to negotiate.
+        Keyword names are the native ones; the package is pinned `==`, so
+        there is nothing to negotiate.
 
         ``agent_url`` is passed explicitly even though the package resolves the
         same default: it decides where the helper's rows go, and
@@ -634,10 +596,9 @@ class CaptureSession:
         installed, or from `start()` when the helper ran and the kernel
         refused it. Both are caught below and carry the same remediation.
 
-        No source is handed over. There is one capture path now: the rows are
-        produced in the helper's process, behind its own SDK connection, and
-        passing a source here is a hard error precisely so it cannot look like
-        silent data loss.
+        No source is handed over: the rows are produced in the helper's process,
+        behind its own SDK connection, and passing a source here is a hard error
+        so it cannot look like silent data loss.
         """
         try:
             module = pkg.module()
@@ -651,7 +612,6 @@ class CaptureSession:
             # Dropping the handle is what stops a constructed-but-unstarted
             # capture from pinning its source for the session's lifetime.
             self._capture = None
-            self._source = None
             if pkg.is_permission_error(exc):
                 raise CaptureDeniedError(
                     f"Capture on {self.config.interface!r} was denied: {_diagnosis(exc)}",
@@ -714,7 +674,6 @@ class CaptureSession:
         except Exception:
             logger.exception("Error stopping capture on %s", self.config.interface)
         self._capture = None
-        self._source = None
         logger.info("Stopped capture on %s", self.config.interface)
 
 
@@ -748,7 +707,7 @@ def make_decoder(
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
     namespace: Any = None,
     cached: bool = True,
-    autoeth: AutoEthConfig = AutoEthConfig(),
+    autoeth: AutoEthConfig = DEFAULT_AUTOETH,
 ) -> Any:
     """A ``PacketDecoder`` emitting into `namespace` under a sanitized `name`.
 
@@ -784,7 +743,7 @@ def replay_pcap(
     name: str = "pcap",
     log_frames: bool = True,
     stored_frame_bytes: int | None = DEFAULT_STORED_FRAME_BYTES,
-    autoeth: AutoEthConfig = AutoEthConfig(),
+    autoeth: AutoEthConfig = DEFAULT_AUTOETH,
 ) -> dict[str, Any]:
     """Decode a pcap/pcapng into the *live* trace namespace. No privileges required.
 
@@ -830,10 +789,7 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
     supported = pkg.capture_supported() if pkg.available() else system in ("Linux", "Darwin")
 
     def denied(reason: str, target: str | None = None, remediation: str | None = None) -> dict:
-        # Every failure carries instructions, whatever the cause: this probe
-        # exists to answer "what do I run to make Start work?", and an empty
-        # answer is the support ticket it is meant to prevent. Only a genuine
-        # refusal gets the "permission denied" header (passed in by the caller).
+        # Every failure carries instructions; only a refusal passes the "permission denied" header.
         return {
             "supported": supported,
             "can_capture": False,
@@ -860,12 +816,7 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
             return denied("No network interfaces were reported by zelos-packet")
         target = str(pool[0]["name"])
 
-    # The package's own verdict, never a start: `status` answers exactly
-    # "will Start work?" (a runnable helper, the grant, and the kernel
-    # blockers that make a present xattr a lie), and it registers nothing in
-    # the live catalog. A subprocess because that verdict is only reachable
-    # through the CLI; it is the same command the remediation tells a user to
-    # run, so the two can never disagree.
+    # The package's verdict is reachable only through its CLI; a start would register events.
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "zelos_packet", "status"],

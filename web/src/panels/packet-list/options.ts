@@ -38,11 +38,16 @@ export const DEFAULT_PACKET_OPTIONS: Required<PacketOptions> = {
 export type ResolvedPacketOptions = Required<PacketOptions>;
 
 /** The persisted `options` bag, type-checked and clamped back onto {@link DEFAULT_PACKET_OPTIONS}. */
-export function resolvePacketPanelOptions(options: Record<string, unknown> | null | undefined): ResolvedPacketOptions {
+export function resolvePacketPanelOptions(
+  options: Record<string, unknown> | null | undefined,
+): ResolvedPacketOptions {
   return {
     showInterface: parseBooleanOption(options?.showInterface, DEFAULT_PACKET_OPTIONS.showInterface),
     showVlan: parseBooleanOption(options?.showVlan, DEFAULT_PACKET_OPTIONS.showVlan),
-    showFragOffset: parseBooleanOption(options?.showFragOffset, DEFAULT_PACKET_OPTIONS.showFragOffset),
+    showFragOffset: parseBooleanOption(
+      options?.showFragOffset,
+      DEFAULT_PACKET_OPTIONS.showFragOffset,
+    ),
     autoScroll: parseBooleanOption(options?.autoScroll, DEFAULT_PACKET_OPTIONS.autoScroll),
     bufferSize: parseBufferSizeOption(options?.bufferSize, DEFAULT_PACKET_OPTIONS.bufferSize),
   };
@@ -64,7 +69,10 @@ const ALWAYS_ON: readonly PacketField[] = [
 const ALWAYS_FETCHED: readonly PacketField[] = ["cap_len", "truncated", "ip_proto"];
 
 /** The fields on screen: both each column's `hide` and the query's projection, so a shown column has its data. */
-export function visiblePacketFields(options: ResolvedPacketOptions, forceInterface: boolean): ReadonlySet<PacketField> {
+export function visiblePacketFields(
+  options: ResolvedPacketOptions,
+  forceInterface: boolean,
+): ReadonlySet<PacketField> {
   const fields = new Set<PacketField>(ALWAYS_ON);
   if (options.showInterface || forceInterface) fields.add("iface");
   if (options.showVlan) fields.add("vlan_id");

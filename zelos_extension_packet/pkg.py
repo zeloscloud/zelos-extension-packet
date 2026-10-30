@@ -49,8 +49,7 @@ def skip_reason() -> str:
         return ""
     return (
         f"zelos-packet is not installed or failed to load ({_import_error!r}). "
-        "Install it with `uv sync` once the package is published, or point "
-        "[tool.uv.sources] at a local checkout."
+        "Install it with `uv sync`."
     )
 
 
@@ -86,14 +85,10 @@ def sanitize_name(name: str) -> str | None:
 
     The package applies this to every name it is given, and the extension uses
     the result to reject duplicates before constructing anything - so the two
-    must agree on which names collide. Asking the package is how they stay in
-    agreement; `capture.sanitize_capture_name` carries the fallback for when it
-    cannot be reached.
+    must agree on which names collide. `capture.sanitize_capture_name` carries
+    the fallback for when the package cannot load.
     """
-    if not available():
-        return None
-    fn = getattr(module(), "sanitize_name", None)
-    return str(fn(name)) if fn is not None else None
+    return str(module().sanitize_name(name)) if available() else None
 
 
 def is_permission_error(exc: BaseException) -> bool:

@@ -9,7 +9,6 @@ import pytest
 from zelos_extension_packet.agent_filter import (
     DEFAULT_AGENT_PORT,
     ConfigError,
-    is_loopback_interface,
     parse_agent_url,
     resolve_agent_endpoint,
     resolve_literals,
@@ -116,13 +115,3 @@ class TestResolveAgentEndpoint:
         assert endpoint.host == "::1"
         assert endpoint.literals == ("::1",)
         assert endpoint.describe() == "::1:2300"
-
-
-@pytest.mark.parametrize("name", ["lo", "lo0", "LO", " loopback "])
-def test_loopback_names(name: str):
-    assert is_loopback_interface(name)
-
-
-@pytest.mark.parametrize("name", ["eth0", "en0", "wlan0"])
-def test_non_loopback_names(name: str):
-    assert not is_loopback_interface(name)

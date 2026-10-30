@@ -7,7 +7,8 @@ const token = (name: string, fallback?: string) =>
 
 /** violet-700: filter icons, sort arrows and range selection, as in the app's own grids. */
 const ACCENT = "263.4 70% 50.4%";
-const accent = (alpha?: number) => (alpha === undefined ? `hsl(${ACCENT})` : `hsl(${ACCENT} / ${alpha})`);
+const accent = (alpha?: number) =>
+  alpha === undefined ? `hsl(${ACCENT})` : `hsl(${ACCENT} / ${alpha})`;
 
 /** A cell's left and right padding. Quartz's own default. */
 export const GRID_CELL_HORIZONTAL_PADDING_PX = 16;

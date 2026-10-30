@@ -1,5 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
-import type { ColumnResizedEvent, ColumnState, FilterModel, GridApi, GridReadyEvent } from "ag-grid-community";
+import type {
+  ColumnResizedEvent,
+  ColumnState,
+  FilterModel,
+  GridApi,
+  GridReadyEvent,
+} from "ag-grid-community";
 import type { ChangeEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveFilterModel, useGridPanelState } from "../grid/use-grid-state";
@@ -53,12 +59,19 @@ function fakeGrid() {
 
 function mount(options: Record<string, unknown> | null = null, sessionId = "ws-1/panel-1") {
   return renderHook(() =>
-    useGridPanelState<TestRow>({ sessionId, options, noRowsOverlay: NoRows, loadingOverlay: Loading }),
+    useGridPanelState<TestRow>({
+      sessionId,
+      options,
+      noRowsOverlay: NoRows,
+      loadingOverlay: Loading,
+    }),
   );
 }
 
 const ready = (view: ReturnType<typeof mount>, grid: ReturnType<typeof fakeGrid>) =>
-  act(() => view.result.current.gridProps.onGridReady({ api: grid.api } as GridReadyEvent<TestRow>));
+  act(() =>
+    view.result.current.gridProps.onGridReady({ api: grid.api } as GridReadyEvent<TestRow>),
+  );
 
 const savedFilters = () =>
   host.setOptions.mock.calls.map(([patch]) => (patch.grid as { filterModel: unknown }).filterModel);
@@ -179,17 +192,41 @@ describe("resolveFilterModel", () => {
     ["a non-object filter model", { grid: { filterModel: 7 } }],
     ["an array filter model", { grid: { filterModel: ["TCP"] } }],
     ["a filter model whose entries are not objects", { grid: { filterModel: { proto: "TCP" } } }],
-  ])("returns undefined for %s, so the panel mounts unfiltered instead of throwing", (_case, options) => {
-    expect(resolveFilterModel(options)).toBeUndefined();
-  });
+  ])(
+    "returns undefined for %s, so the panel mounts unfiltered instead of throwing",
+    (_case, options) => {
+      expect(resolveFilterModel(options)).toBeUndefined();
+    },
+  );
 });
 
 describe("the column layout, kept for the session", () => {
   const layout = (sourceWidth: number, hide = false): ColumnState[] => [
-    { colId: "time", width: 120, flex: null, hide: false, pinned: "left", sort: "desc", sortIndex: 0 },
-    { colId: "source", width: sourceWidth, flex: null, hide, pinned: null, sort: null, sortIndex: null },
+    {
+      colId: "time",
+      width: 120,
+      flex: null,
+      hide: false,
+      pinned: "left",
+      sort: "desc",
+      sortIndex: 0,
+    },
+    {
+      colId: "source",
+      width: sourceWidth,
+      flex: null,
+      hide,
+      pinned: null,
+      sort: null,
+      sortIndex: null,
+    },
   ];
-  const persisted = (sourceWidth: number) => layout(sourceWidth).map(({ hide: _hide, ...rest }) => rest);
+  const persisted = (sourceWidth: number) =>
+    layout(sourceWidth).map((state) => {
+      const rest = { ...state };
+      delete rest.hide;
+      return rest;
+    });
 
   it("restores the layout the user has now when the grid remounts, not the one it mounted with", () => {
     const grid = fakeGrid();
@@ -197,12 +234,19 @@ describe("the column layout, kept for the session", () => {
     ready(view, grid);
 
     grid.columnState = layout(300);
-    act(() => view.result.current.gridProps.onColumnResized({ finished: true } as ColumnResizedEvent<TestRow>));
+    act(() =>
+      view.result.current.gridProps.onColumnResized({
+        finished: true,
+      } as ColumnResizedEvent<TestRow>),
+    );
 
     const remounted = fakeGrid();
     ready(view, remounted);
 
-    expect(remounted.applyColumnState).toHaveBeenCalledWith({ state: persisted(300), applyOrder: true });
+    expect(remounted.applyColumnState).toHaveBeenCalledWith({
+      state: persisted(300),
+      applyOrder: true,
+    });
   });
 
   it("saves a resize or a move only once the drag finishes", () => {
@@ -211,7 +255,11 @@ describe("the column layout, kept for the session", () => {
     ready(view, grid);
 
     grid.columnState = layout(300);
-    act(() => view.result.current.gridProps.onColumnResized({ finished: false } as ColumnResizedEvent<TestRow>));
+    act(() =>
+      view.result.current.gridProps.onColumnResized({
+        finished: false,
+      } as ColumnResizedEvent<TestRow>),
+    );
     expect(view.result.current.columnState).toBeNull();
   });
 
@@ -223,7 +271,9 @@ describe("the column layout, kept for the session", () => {
     grid.columnState = layout(120);
     act(() => view.result.current.gridProps.onSortChanged());
 
-    expect(view.result.current.columnState?.find((state) => state.colId === "time")?.sort).toBe("desc");
+    expect(view.result.current.columnState?.find((state) => state.colId === "time")?.sort).toBe(
+      "desc",
+    );
   });
 
   // Visibility is a panel option driving `ColDef.hide`; a saved `hide` would fight it.
@@ -240,7 +290,10 @@ describe("the column layout, kept for the session", () => {
     const second = mount();
     ready(second, reloaded);
 
-    expect(reloaded.applyColumnState).toHaveBeenCalledWith({ state: persisted(80), applyOrder: true });
+    expect(reloaded.applyColumnState).toHaveBeenCalledWith({
+      state: persisted(80),
+      applyOrder: true,
+    });
   });
 
   it("does not write back when only visibility changed", () => {
@@ -258,7 +311,11 @@ describe("the column layout, kept for the session", () => {
 
   it("keeps the search text across a reload, and each session's apart", () => {
     const first = mount();
-    act(() => first.result.current.search.onChange({ target: { value: "dns" } } as ChangeEvent<HTMLInputElement>));
+    act(() =>
+      first.result.current.search.onChange({
+        target: { value: "dns" },
+      } as ChangeEvent<HTMLInputElement>),
+    );
     first.unmount();
 
     expect(mount().result.current.search.value).toBe("dns");
@@ -324,7 +381,8 @@ describe("the grid's fixed configuration", () => {
 describe("glob search", () => {
   const matcher = () => {
     const { quickFilterParser, quickFilterMatcher } = mount().result.current.gridProps;
-    return (query: string, rowText: string) => quickFilterMatcher(quickFilterParser(query), rowText);
+    return (query: string, rowText: string) =>
+      quickFilterMatcher(quickFilterParser(query), rowText);
   };
 
   it("matches a glob, or a plain word anywhere, with the whole query as one pattern", () => {

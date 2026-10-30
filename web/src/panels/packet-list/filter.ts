@@ -63,7 +63,8 @@ type Predicate = (row: PacketRow) => boolean;
 
 type PacketFilter =
   /** `predicate` is null for an empty expression: nothing to apply, and nothing wrong. */
-  { ok: true; predicate: Predicate | null } | { ok: false; message: string; start: number; end: number };
+  | { ok: true; predicate: Predicate | null }
+  | { ok: false; message: string; start: number; end: number };
 
 /** A parse failure, carrying the span of the token that caused it so the UI can mark it. */
 class FilterError extends Error {
@@ -93,13 +94,24 @@ const NUMBER_RE = /^-?\d+(\.\d+)?$/;
 
 /** Every operator the language has. A run of their characters that spells none of them is an error. */
 const OPERATORS = new Map<string, TokenKind>([
-  ["&&", "and"], ["||", "or"], ["!", "not"],
-  ["==", "op"], ["!=", "op"], ["<=", "op"], [">=", "op"], ["<", "op"], [">", "op"],
+  ["&&", "and"],
+  ["||", "or"],
+  ["!", "not"],
+  ["==", "op"],
+  ["!=", "op"],
+  ["<=", "op"],
+  [">=", "op"],
+  ["<", "op"],
+  [">", "op"],
 ]);
 const OPERATOR_CHARS = new Set([...OPERATORS.keys()].join(""));
 
 /** Wireshark's spellings of the connectives, reserved the way it reserves them. */
-const KEYWORDS = new Map<string, TokenKind>([["not", "not"], ["and", "and"], ["or", "or"]]);
+const KEYWORDS = new Map<string, TokenKind>([
+  ["not", "not"],
+  ["and", "and"],
+  ["or", "or"],
+]);
 
 /** A word ends at whitespace, a paren, a quote or an operator character — so `10.0.0.5` stays one token. */
 function isWordChar(ch: string): boolean {
@@ -175,7 +187,11 @@ function compare(operator: Operator, a: number, b: number): boolean {
 }
 
 /** `==` is "any value matches" and `!=` its negation, or `tcp.port != 80` holds for every two-port packet. */
-function numberTest(def: Extract<FieldDef, { kind: "number" }>, operator: Operator, literal: number): Predicate {
+function numberTest(
+  def: Extract<FieldDef, { kind: "number" }>,
+  operator: Operator,
+  literal: number,
+): Predicate {
   return (row) => {
     if (def.l4 !== undefined && !isL4(row, def.l4)) return false;
     const values = def
@@ -187,7 +203,11 @@ function numberTest(def: Extract<FieldDef, { kind: "number" }>, operator: Operat
   };
 }
 
-function addressTest(def: Extract<FieldDef, { kind: "address" }>, operator: Operator, literal: string): Predicate {
+function addressTest(
+  def: Extract<FieldDef, { kind: "address" }>,
+  operator: Operator,
+  literal: string,
+): Predicate {
   return (row) => {
     // No such field fails, as in Wireshark: else `ip.addr != anything` holds for every ARP frame.
     const values = def.read(row).filter((value) => value !== "");
@@ -235,7 +255,11 @@ function comparison(name: Token, def: FieldDef, token: Token): Operator {
   const operator = (token.kind === "op" ? token.text : "contains") as Operator;
   const allowed = COMPARISONS[def.kind];
   if (!allowed.includes(operator)) {
-    throw new FilterError(`${name.text} supports only ${allowed.join(" ")}`, token.start, token.end);
+    throw new FilterError(
+      `${name.text} supports only ${allowed.join(" ")}`,
+      token.start,
+      token.end,
+    );
   }
   return operator;
 }
@@ -262,7 +286,9 @@ function comparisonTest(
   if (value.kind !== "word" && value.kind !== "string") {
     throw new FilterError(`expected a value, found "${value.text}"`, value.start, value.end);
   }
-  return def.kind === "address" ? addressTest(def, operator, value.text) : textTest(def, value.text);
+  return def.kind === "address"
+    ? addressTest(def, operator, value.text)
+    : textTest(def, value.text);
 }
 
 /** A predicate over the buffered rows; a field outside `available`, the query's projection, fails validation. */
@@ -295,7 +321,11 @@ export function parsePacketFilter(text: string, available: ReadonlySet<PacketFie
       if (def.kind === "presence") {
         const after = peek();
         if (after && isOperator(after)) {
-          throw new FilterError(`${name.text} is a presence test and takes no operator`, after.start, after.end);
+          throw new FilterError(
+            `${name.text} is a presence test and takes no operator`,
+            after.start,
+            after.end,
+          );
         }
         return def.test;
       }
@@ -320,7 +350,8 @@ export function parsePacketFilter(text: string, available: ReadonlySet<PacketFie
         i++;
         const inner = parseOr();
         const close = peek();
-        if (close?.kind !== ")") throw close ? new FilterError('expected ")"', close.start, close.end) : end();
+        if (close?.kind !== ")")
+          throw close ? new FilterError('expected ")"', close.start, close.end) : end();
         i++;
         return inner;
       }
@@ -351,7 +382,8 @@ export function parsePacketFilter(text: string, available: ReadonlySet<PacketFie
 
     const predicate = parseOr();
     const trailing = peek();
-    if (trailing) throw new FilterError(`unexpected "${trailing.text}"`, trailing.start, trailing.end);
+    if (trailing)
+      throw new FilterError(`unexpected "${trailing.text}"`, trailing.start, trailing.end);
     return { ok: true, predicate };
   } catch (error) {
     if (error instanceof FilterError) {

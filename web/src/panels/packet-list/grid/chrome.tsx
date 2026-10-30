@@ -59,9 +59,22 @@ function GridPanelSearch({
     <div className="grid-search">
       <label className="search-box">
         <SearchIcon />
-        <input ref={inputRef} type="text" placeholder="Search..." aria-label="Search" value={value} onChange={onChange} />
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Search..."
+          aria-label="Search"
+          value={value}
+          onChange={onChange}
+        />
         {value.length > 0 && (
-          <button type="button" className="ghost-button" aria-label="Clear search" title="Clear search" onClick={onClear}>
+          <button
+            type="button"
+            className="ghost-button"
+            aria-label="Clear search"
+            title="Clear search"
+            onClick={onClear}
+          >
             <ClearIcon />
           </button>
         )}
@@ -96,7 +109,12 @@ export function GridPanelBody({
 
   // Cmd+F focuses the search while focus is inside the panel.
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "f") {
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      !event.shiftKey &&
+      !event.altKey &&
+      event.key.toLowerCase() === "f"
+    ) {
       event.preventDefault();
       event.stopPropagation();
       searchRef.current?.focus();
@@ -110,7 +128,12 @@ export function GridPanelBody({
   return (
     // tabIndex makes any click in the panel count as focus, so Cmd+F and Escape reach it after a click.
     <div className="grid-panel" tabIndex={-1} onKeyDown={handleKeyDown} data-grid-panel="">
-      <GridPanelSearch inputRef={searchRef} value={search.value} onChange={search.onChange} onClear={search.onClear} />
+      <GridPanelSearch
+        inputRef={searchRef}
+        value={search.value}
+        onChange={search.onChange}
+        onClear={search.onClear}
+      />
       {toolbar}
       <div className="grid-panel-body">
         <GridSearchContext.Provider value={terms}>{children}</GridSearchContext.Provider>
@@ -127,7 +150,13 @@ export function GridPanelBody({
 }
 
 /** The status bar under a grid: one line, its parts separated by `·`. Nothing to say renders nothing. */
-export function GridStatusStrip({ testId, parts }: { testId: string; parts: readonly ReactNode[] }): ReactNode {
+export function GridStatusStrip({
+  testId,
+  parts,
+}: {
+  testId: string;
+  parts: readonly ReactNode[];
+}): ReactNode {
   const shown = parts.filter(Boolean);
   if (shown.length === 0) return null;
   return (

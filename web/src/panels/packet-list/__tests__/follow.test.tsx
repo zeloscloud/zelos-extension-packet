@@ -43,7 +43,8 @@ function scrollToEnd() {
   grid.viewport = { top, bottom: top + VIEWPORT_HEIGHT };
 }
 
-const ids = (from: number, to: number) => Array.from({ length: to - from }, (_, i) => `p${from + i}`);
+const ids = (from: number, to: number) =>
+  Array.from({ length: to - from }, (_, i) => `p${from + i}`);
 
 function renderFollow(newestRowId: string) {
   const options = {
@@ -55,7 +56,9 @@ function renderFollow(newestRowId: string) {
     tailOrder: "asc" as const,
     rowHeight: ROW_HEIGHT,
   };
-  const hook = renderHook((props: typeof options) => useGridFollow<Row>(props), { initialProps: options });
+  const hook = renderHook((props: typeof options) => useGridFollow<Row>(props), {
+    initialProps: options,
+  });
   act(() => hook.result.current.gridEvents.onFirstDataRendered());
   return { ...hook, options };
 }

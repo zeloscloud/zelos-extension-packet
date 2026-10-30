@@ -40,7 +40,7 @@ class TestConfig:
         config = load_config(config_path=config_file, schema_path=SCHEMA)
         assert parse_autoeth(config) == AutoEthConfig(sd_port=30490, doip_port=13400)
 
-    def test_null_ports_turn_dissectors_off_and_arxml_resolves(self, tmp_path, monkeypatch):
+    def test_null_ports_turn_dissectors_off_and_arxml_resolves(self, monkeypatch):
         monkeypatch.chdir(FILES)
         autoeth = parse_autoeth(
             {

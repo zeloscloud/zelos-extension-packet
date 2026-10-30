@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import schema from "../../../../public/panels/packet-list.options.json";
 import { DEFAULT_PACKET_OPTIONS, MAX_BUFFER_SIZE, resolvePacketPanelOptions } from "../options";
-import { DEFAULT_GRID_FONT_PX, resolveFilterModel, resolveGridFontSize } from "../grid/use-grid-state";
+import {
+  DEFAULT_GRID_FONT_PX,
+  resolveFilterModel,
+  resolveGridFontSize,
+} from "../grid/use-grid-state";
 
 /** The panel settings' form and the code's defaults must not drift apart. */
 describe("packet list options", () => {
   it("declares the code's defaults in the options schema, with the settings' titles", () => {
-    const properties = schema.properties as Record<string, { title: string; description: string; default?: unknown }>;
+    const properties = schema.properties as Record<
+      string,
+      { title: string; description: string; default?: unknown }
+    >;
     for (const [key, value] of Object.entries(DEFAULT_PACKET_OPTIONS)) {
       expect(properties[key]?.default, key).toBe(value);
     }
@@ -27,7 +34,14 @@ describe("packet list options", () => {
   // Layouts saved by Zelos 26.0.9 and earlier refer to this panel by these option keys.
   it("reads every option a saved layout holds", () => {
     expect(Object.keys(schema.properties)).toEqual(
-      expect.arrayContaining(["showInterface", "showVlan", "showFragOffset", "autoScroll", "bufferSize", "fontSize"]),
+      expect.arrayContaining([
+        "showInterface",
+        "showVlan",
+        "showFragOffset",
+        "autoScroll",
+        "bufferSize",
+        "fontSize",
+      ]),
     );
     const filterModel = { proto: { filterType: "text", type: "equals", filter: "TCP" } };
     const saved = {

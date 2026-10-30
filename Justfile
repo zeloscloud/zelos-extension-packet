@@ -1,119 +1,74 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
+# Each shared recipe acts on the parts this project has:
+# the agent runtime when pyproject.toml exists, the web project when web/package.json exists.
+
 default:
     @just --list
 
-# Install dependencies and pre-commit hooks. `uv sync` installs zelos-packet
-# from the package index, like every other dependency.
+# Install dependencies and the pre-commit hooks
 install:
-    uv sync --extra dev
-    uv run pre-commit install
-
-# Install dependencies for CI (no pre-commit hooks)
-ci-install:
-    uv sync --extra dev
-
-# Dev environment WITHOUT zelos-packet, for while that package is still being
-# built. Every test that needs the real package skips with a clear reason.
-install-nolive:
-    uv venv --python 3.11
-    uv pip install pytest jsonschema ruff "zelos-sdk>=0.0.13a1" "rich-click>=1.8.0"
-
-# Format code
-format:
-    uv run ruff format .
-    uv run ruff check --fix .
-
-# Check formatting (no changes)
-format-check:
-    uv run ruff format --check .
-    uv run ruff check .
-
-# Run checks (both halves: ruff, and the panel's type check)
-check: web-check
-    uv run ruff check .
-
-# Run checks against the install-nolive environment
-check-nolive:
-    .venv/bin/python -m ruff check .
-
-# Run tests (both halves). The packaging tests read the built panel, so it builds first.
-test: web-test web-build
-    uv run pytest
-
-# Run tests against the install-nolive environment
-test-nolive: web-build
-    .venv/bin/python -m pytest
-
-# Run extension locally (app-config mode)
-dev:
-    uv run python main.py
-
-# List capturable interfaces
-interfaces:
-    uv run python main.py interfaces
-
-# Probe capture permissions and print remediation
-check-permissions:
-    uv run python main.py check
-
-# Package for the Zelos marketplace (also generates actions.json)
-package: clean web-build
     #!/usr/bin/env bash
-    set -euo pipefail
-    if grep -q '^\[tool\.uv\.sources\]' pyproject.toml; then
-        echo "error: pyproject.toml still resolves zelos-packet through [tool.uv.sources]." >&2
-        echo "       uv honors that table in the extension host too, and both it and uv.lock" >&2
-        echo "       ship in the archive, so the package would install nowhere. Drop the table" >&2
-        echo "       and re-run 'uv lock' once zelos-packet publishes." >&2
-        echo "       For a local, install-nowhere dry run: just package-dev" >&2
-        exit 1
+    set -eu -o pipefail
+    if [[ -f pyproject.toml ]]; then
+      uv sync
+      if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        uv run pre-commit install
+      else
+        echo "Not a git repository: skipped the pre-commit hooks. Run git init, then just install."
+      fi
     fi
-    # The packager only skips dotted paths and node_modules, so a stray
-    # __pycache__ would ship. `clean` clears what is there; this keeps the
-    # action dump (a `uv run` in this directory) from writing more.
-    PYTHONDONTWRITEBYTECODE=1 zelos extensions package .
+    if [[ -f web/package.json ]]; then (cd web && npm install); fi
 
-# Dry-run package while the zelos-packet override stands (installs nowhere)
-package-dev: clean web-build
-    # Not dist/: that is the built panel, which [package] paths ships. The packager
-    # skips dotted directories, so the archive can't pack itself.
-    # `--output` only means "directory" if the directory already exists.
-    mkdir -p .artifacts
-    PYTHONDONTWRITEBYTECODE=1 zelos extensions package . --output .artifacts
+# Install dependencies from the lockfiles when they exist (CI, no pre-commit hooks)
+ci-install:
+    if [[ -f pyproject.toml ]]; then if [[ -f uv.lock ]]; then uv sync --locked; else uv sync; fi; fi
+    just _web-install
 
-# ── The Packet List panel (web/) ─────────────────────────────────────────────
+_web-install:
+    if [[ -f web/package-lock.json ]]; then (cd web && npm ci); elif [[ -f web/package.json ]]; then (cd web && npm install); fi
 
-# Install the panel's npm dependencies
-web-install:
-    cd web && npm ci
+# Install the web project's dependencies only when web/node_modules is missing
+_deps:
+    if [[ -f web/package.json && ! -d web/node_modules ]]; then just _web-install; fi
 
-# Build the panel into dist/panels/
-web-build:
-    cd web && npm run build
+# Format code (ruff, Prettier)
+format: _deps
+    if [[ -f pyproject.toml ]]; then uv run ruff format . && uv run ruff check --fix .; fi
+    if [[ -f web/package.json ]]; then (cd web && npm run format); fi
 
-# Type-check the panel
-web-check:
-    cd web && npm run check
+# Check formatting and lint (ruff, Prettier, ESLint), and type-check the web project (tsc)
+check: _deps
+    if [[ -f pyproject.toml ]]; then uv run ruff format --check . && uv run ruff check .; fi
+    if [[ -f web/package.json ]]; then (cd web && npm run format:check && npm run check); fi
 
-# Run the panel's tests
-web-test:
-    cd web && npm test
+# Run tests
+test: _deps
+    if [[ -f pyproject.toml ]]; then uv run pytest; fi
+    if [[ -f web/package.json ]]; then (cd web && npm test); fi
 
-# Serve the panel standalone, against the SDK's mock host
-web-dev:
-    cd web && npm run dev
+# Build the web project into dist/
+build: _deps
+    if [[ -f web/package.json ]]; then (cd web && npm run build); fi
 
-# Release: bump version, format, check, test, commit, tag
-release VERSION:
+# Build and package for the Zelos marketplace
+package: build
+    zelos extensions package .
+
+# Run all CI checks
+ci: ci-install check test package
+
+# Release: bump version, format, check, test, build, commit, tag
+release VERSION: _deps
     #!/usr/bin/env bash
-    set -euo pipefail
+    set -eux -o pipefail
     git diff-index --quiet HEAD || (echo "Uncommitted changes! Commit or stash first." && exit 1)
     zelos extensions bump "{{VERSION}}"
+    if [[ -f pyproject.toml ]]; then uv lock; fi
     just format
-    uv lock
     just check
     just test
+    just build
     git add -A
     git commit -m "Release v{{VERSION}}"
     git tag -a "v{{VERSION}}" -m "Release v{{VERSION}}"
@@ -122,7 +77,46 @@ release VERSION:
     echo ""
     echo "Push with: git push --follow-tags"
 
-# Clean build artifacts
+# Delete a GitHub release and its remote and local tag
+delete-release VERSION:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tag="v{{VERSION}}"
+    gh release delete "$tag" --yes 2>/dev/null && echo "✓ release deleted" || echo "- no release found"
+    git push origin --delete "$tag" 2>/dev/null && echo "✓ remote tag deleted" || echo "- no remote tag"
+    git tag -d "$tag" 2>/dev/null && echo "✓ local tag deleted" || echo "- no local tag"
+    echo ""
+    echo "✓ Cleaned up $tag — ready to re-release"
+
+# Remove build output, caches and packages
 clean:
-    rm -rf dist build .pytest_cache .ruff_cache *.tar.gz .artifacts actions.json
-    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    rm -rf dist web/node_modules .pytest_cache .ruff_cache *.tar.gz actions.json
+    find . -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
+
+# Run the agent runtime locally
+run:
+    uv run python main.py
+
+# Update uv.lock after changing dependencies
+lock:
+    uv lock
+
+# Start the Vite dev server: /tab/ and /panels/<id>.html run against a mock host
+dev: _deps
+    (cd web && npm run dev)
+
+# Rebuild dist/ on every change, for a local install in Zelos
+watch: _deps
+    (cd web && npm run watch)
+
+# Run the web tests in watch mode
+test-watch: _deps
+    (cd web && npm run test:watch)
+
+# List capturable interfaces
+interfaces:
+    uv run python main.py interfaces
+
+# Probe capture permissions and print remediation
+check-permissions:
+    uv run python main.py check

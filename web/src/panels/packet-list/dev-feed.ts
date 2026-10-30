@@ -48,9 +48,15 @@ export const DEV_SIGNALS: AppBridgePanelSignal[] = [
 // ── Frames ───────────────────────────────────────────────────────────────────────────────────────
 
 const be16 = (value: number) => [(value >> 8) & 0xff, value & 0xff];
-const be32 = (value: number) => [(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+const be32 = (value: number) => [
+  (value >>> 24) & 0xff,
+  (value >>> 16) & 0xff,
+  (value >>> 8) & 0xff,
+  value & 0xff,
+];
 const ipBytes = (address: string) => address.split(".").map(Number);
-const hex = (bytes: readonly number[]) => `0x${bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+const hex = (bytes: readonly number[]) =>
+  `0x${bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 
 const HOST_MAC = "02:00:00:00:00:01";
 const GATEWAY_MAC = "02:00:00:00:00:02";
@@ -69,7 +75,13 @@ interface Flow {
 /** One packet as the capture would write it: the 31 fields of `zelos.packet.v1`, and its time. */
 type DevPacket = Record<string, QueryCellValue> & { timeS: number };
 
-function ethernetIpv4(flow: Flow, outbound: boolean, l4: number[], ttl: number, id: number): number[] {
+function ethernetIpv4(
+  flow: Flow,
+  outbound: boolean,
+  l4: number[],
+  ttl: number,
+  id: number,
+): number[] {
   const ipLength = 20 + l4.length;
   const ip = [
     0x45,
@@ -136,7 +148,13 @@ function httpsExchange(n: number, outbound: boolean): Exchange {
     ...payload,
   ];
   const info = `${flow.srcPort} → ${flow.dstPort} [${flagText(flags)}] Seq=${seq} Ack=${ack} Win=${window} Len=${payload.length}`;
-  return { flow, l4, info, extra: { tcp_flags: flags, tcp_seq: seq, tcp_ack: ack, tcp_window: window }, flowId: 1 };
+  return {
+    flow,
+    l4,
+    info,
+    extra: { tcp_flags: flags, tcp_seq: seq, tcp_ack: ack, tcp_window: window },
+    flowId: 1,
+  };
 }
 
 /** DNS, query and answer. */
@@ -145,8 +163,17 @@ function dnsExchange(n: number, outbound: boolean): Exchange {
     ? { proto: "UDP", src: "10.0.0.5", dst: "8.8.8.8", srcPort: 5353, dstPort: 53 }
     : { proto: "UDP", src: "8.8.8.8", dst: "10.0.0.5", srcPort: 53, dstPort: 5353 };
   const payload = ascii(outbound ? "query example.com A" : "answer 93.184.216.34");
-  const l4 = [...be16(flow.srcPort ?? 0), ...be16(flow.dstPort ?? 0), ...be16(8 + payload.length), 0, 0, ...payload];
-  const info = outbound ? `Standard query 0x${(n & 0xffff).toString(16)} A example.com` : "Standard query response A 93.184.216.34";
+  const l4 = [
+    ...be16(flow.srcPort ?? 0),
+    ...be16(flow.dstPort ?? 0),
+    ...be16(8 + payload.length),
+    0,
+    0,
+    ...payload,
+  ];
+  const info = outbound
+    ? `Standard query 0x${(n & 0xffff).toString(16)} A example.com`
+    : "Standard query response A 93.184.216.34";
   return { flow, l4, info, extra: { udp_len: 8 + payload.length }, flowId: 2 };
 }
 
@@ -175,7 +202,9 @@ function makePacket(n: number, timeS: number): DevPacket {
   const { flow, l4, info, extra, flowId } = exchange(n, outbound);
 
   const frame = ethernetIpv4(flow, outbound, l4, outbound ? 64 : 56, n & 0xffff);
-  const fields: Record<string, QueryCellValue> = Object.fromEntries(PACKET_EVENT_FIELDS.map((name) => [name, null]));
+  const fields: Record<string, QueryCellValue> = Object.fromEntries(
+    PACKET_EVENT_FIELDS.map((name) => [name, null]),
+  );
   Object.assign(fields, {
     frame_no: n,
     iface: "eth0",
@@ -223,14 +252,20 @@ function column(name: string): ColumnMetadata {
 function window(packets: readonly DevPacket[], fields: readonly string[]): QueryDataMulti {
   return {
     columns: [column(""), ...fields.map(column)],
-    data: [packets.map((packet) => packet.timeS), ...fields.map((field) => packets.map((packet) => packet[field] ?? null))],
+    data: [
+      packets.map((packet) => packet.timeS),
+      ...fields.map((field) => packets.map((packet) => packet[field] ?? null)),
+    ],
     range: null,
     queryDurationS: 0,
   };
 }
 
 /** `query.liveQueryAllMulti` over the retained packets: the drawer's and "Copy row as JSON"'s re-fetch. */
-function answerLiveQuery(packets: readonly DevPacket[], params: LiveQueryAllMultiParams): QueryDataMulti {
+function answerLiveQuery(
+  packets: readonly DevPacket[],
+  params: LiveQueryAllMultiParams,
+): QueryDataMulti {
   const paths = params.agentSignals[PRODUCER] ?? [];
   const fields = paths
     .filter((path) => path.includes(`${PACKETS.message}.`))
@@ -301,7 +336,14 @@ export function startDevFeed(bridge: MockBridge): () => void {
       timeNs,
       dataSegmentId: null,
     }));
-    return { dataset: null, latest, timeMode: "absolute", totalRows: 0, isLoading: false, error: null };
+    return {
+      dataset: null,
+      latest,
+      timeMode: "absolute",
+      totalRows: 0,
+      isLoading: false,
+      error: null,
+    };
   };
 
   const tick = () => {
@@ -322,12 +364,19 @@ export function startDevFeed(bridge: MockBridge): () => void {
 
   // The mock answers `panel.*` itself; only the query the drawer needs is played here.
   const invoke = bridge.invoke;
-  bridge.invoke = <T = unknown>(method: string, params?: unknown, options?: Parameters<MockBridge["invoke"]>[2]) =>
+  bridge.invoke = <T = unknown>(
+    method: string,
+    params?: unknown,
+    options?: Parameters<MockBridge["invoke"]>[2],
+  ) =>
     method === "query.liveQueryAllMulti"
       ? Promise.resolve(answerLiveQuery(packets, params as LiveQueryAllMultiParams) as T)
-      : invoke.call(bridge, method, params, options) as Promise<T>;
+      : (invoke.call(bridge, method, params, options) as Promise<T>);
 
-  const stops = [bridge.startPush("packets", rows, PUSH_MS), bridge.startPush("stats", stats, PUSH_MS)];
+  const stops = [
+    bridge.startPush("packets", rows, PUSH_MS),
+    bridge.startPush("stats", stats, PUSH_MS),
+  ];
   return () => {
     clearInterval(timer);
     for (const stop of stops) stop();

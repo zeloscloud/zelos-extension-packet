@@ -3,7 +3,15 @@ import type { PacketField, PacketRow } from "../data";
 import { parsePacketFilter } from "../filter";
 
 /** What a default panel projects: no VLAN column, so no `vlan.id` to filter on. */
-const PROJECTED = new Set<PacketField>(["src_ip", "src_port", "dst_ip", "dst_port", "proto", "orig_len", "info"]);
+const PROJECTED = new Set<PacketField>([
+  "src_ip",
+  "src_port",
+  "dst_ip",
+  "dst_port",
+  "proto",
+  "orig_len",
+  "info",
+]);
 
 function row(overrides: Partial<PacketRow>): PacketRow {
   return {
@@ -78,7 +86,9 @@ describe("parsePacketFilter", () => {
 
     // A field the packet does not carry fails every comparison, `!=` included: an ARP frame renders no
     // address, so it is not "an address other than this one".
-    expect(matches("ip.addr != 10.0.0.5", row({ proto: "ARP", ipProto: null, srcIp: "", dstIp: "" }))).toBe(false);
+    expect(
+      matches("ip.addr != 10.0.0.5", row({ proto: "ARP", ipProto: null, srcIp: "", dstIp: "" })),
+    ).toBe(false);
     expect(matches("ip.addr != 10.0.0.5", tcp)).toBe(false);
     expect(matches("ip.addr != 10.0.0.5", row({ srcIp: "10.0.0.9" }))).toBe(true);
 
@@ -103,7 +113,14 @@ describe("parsePacketFilter", () => {
     expect(parsePacketFilter("vlan.id == 100", new Set([...PROJECTED, "vlan_id"])).ok).toBe(true);
 
     // `toString` is a word like any other; it must read as an unknown field, not as `Object.prototype`.
-    for (const bad of ["tcp ==", "frame.len == abc", "(tcp", "info == dns", "tcp == 1", "toString == 1"]) {
+    for (const bad of [
+      "tcp ==",
+      "frame.len == abc",
+      "(tcp",
+      "info == dns",
+      "tcp == 1",
+      "toString == 1",
+    ]) {
       expect(parsePacketFilter(bad, PROJECTED).ok, bad).toBe(false);
     }
   });

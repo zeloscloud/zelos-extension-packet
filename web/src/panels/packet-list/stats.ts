@@ -45,7 +45,9 @@ function later(a: string | null, b: string | null): boolean {
 }
 
 /** Each counter's newest value per capture, summed; a capture answers once per segment, so the newest wins. */
-export function summarizePacketStats(values: readonly LatestSignalValue[]): PacketStatsSummary | null {
+export function summarizePacketStats(
+  values: readonly LatestSignalValue[],
+): PacketStatsSummary | null {
   const streams = new Map<string, Partial<Record<StripField, LatestSignalValue>>>();
   for (const value of values) {
     if (!(STRIP_FIELDS as readonly string[]).includes(value.signal)) continue;
@@ -58,7 +60,10 @@ export function summarizePacketStats(values: readonly LatestSignalValue[]): Pack
   }
   if (streams.size === 0) return null;
 
-  const read = (stream: Partial<Record<StripField, LatestSignalValue>>, field: StripField): number => {
+  const read = (
+    stream: Partial<Record<StripField, LatestSignalValue>>,
+    field: StripField,
+  ): number => {
     const n = Number(stream[field]?.value);
     return Number.isFinite(n) ? n : 0;
   };
@@ -92,8 +97,14 @@ function bitRate(bps: number): string {
 }
 
 /** The strip's line; `rates: false` drops the rates, which in a recording describe no traffic anyone watches. */
-export function formatPacketStats(s: PacketStatsSummary, { rates = true }: { rates?: boolean } = {}): string {
-  const parts = [`Packets ${count(s.packets)}`, `Dropped ${count(s.droppedKernel)} kernel / ${count(s.droppedAgent)} agent`];
+export function formatPacketStats(
+  s: PacketStatsSummary,
+  { rates = true }: { rates?: boolean } = {},
+): string {
+  const parts = [
+    `Packets ${count(s.packets)}`,
+    `Dropped ${count(s.droppedKernel)} kernel / ${count(s.droppedAgent)} agent`,
+  ];
   if (rates) parts.push(`${count(s.pps)} pps`, bitRate(s.bps));
   if (s.truncated > 0) parts.push(`Truncated ${count(s.truncated)}`);
   if (s.captures > 1) parts.push(`${s.captures} captures`);

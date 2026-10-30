@@ -5,9 +5,8 @@ Two things live here:
 * a **programmatically generated pcap** - no binary fixture is committed, so the
   bytes under test are visible in this file;
 * a **fake `zelos_packet` module**, so everything except the native capture path
-  is exercised without the real (Rust) package, which is being built in
-  parallel. Tests that genuinely need the real package use
-  ``needs_real_packet``.
+  is exercised without the real (Rust) package and without capture privileges.
+  Tests that genuinely need the real package use ``needs_real_packet``.
 """
 
 from __future__ import annotations
@@ -283,8 +282,7 @@ FAKE_REMEDIATION = "fake native remediation: do the thing"
 
 
 def fake_sanitize_name(raw: str) -> str:
-    """`zelos_packet.sanitize_name`, restated. Same rule as the Rust one
-    (`schema.rs::sanitize_event_prefix`) so a test that stubs the package
+    """`zelos_packet.sanitize_name`, restated, so a test that stubs the package
     still exercises the naming the real package would produce."""
     cleaned = re.sub(r"[.:@/\s]+", "_", raw.strip()).strip("_")
     return cleaned or "capture"

@@ -1,4 +1,4 @@
-"""App-mode wiring: exclusion resolution and the amplification warning."""
+"""App-mode wiring: trace logging and the action surface."""
 
 from __future__ import annotations
 
@@ -15,40 +15,13 @@ def _iface(name: str, snaplen: int = 512) -> InterfaceConfig:
     return InterfaceConfig(interface=name, name=name.replace(".", "_"), snaplen=snaplen)
 
 
-class TestResolveExclusion:
-    def test_enabled_by_default(self, monkeypatch):
-        monkeypatch.setattr(cli, "_resolve_agent_endpoint", lambda: ENDPOINT)
-        assert cli._resolve_exclusion({}, [_iface("eth0")]) is ENDPOINT
-
-    def test_disabled_returns_none(self):
-        assert cli._resolve_exclusion({"exclude_agent_traffic": False}, [_iface("eth0")]) is None
-
-    def test_disabled_on_loopback_warns_about_amplification(self, caplog):
-        with caplog.at_level(logging.WARNING):
-            cli._resolve_exclusion({"exclude_agent_traffic": False}, [_iface("lo0", 1518)])
-        warnings = "\n".join(r.getMessage() for r in caplog.records)
-        assert "'lo0'" in warnings
-        assert "amplifies" in warnings
-        assert "1518" in warnings
-
-    def test_disabled_on_a_normal_interface_warns_but_not_about_loopback(self, caplog):
-        with caplog.at_level(logging.WARNING):
-            cli._resolve_exclusion({"exclude_agent_traffic": False}, [_iface("eth0")])
-        warnings = "\n".join(r.getMessage() for r in caplog.records)
-        assert "exclusion is disabled" in warnings
-        assert "amplifies" not in warnings
-
-
 class TestTraceLogging:
     def test_log_records_ride_the_extensions_own_source(self):
         """`Packet/log` next to the captures, not a `Packet_log` sibling: the handler
         wraps the global source `init` made, and attaching twice adds nothing."""
-        import logging
 
         import zelos_sdk
         from zelos_sdk.hooks.logging import TraceLoggingHandler
-
-        from zelos_extension_packet import cli
 
         from .conftest import ensure_sdk_init
 

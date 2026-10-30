@@ -2,7 +2,11 @@ import type { LatestSignalValue } from "@zeloscloud/app-extension-sdk";
 import { describe, expect, it } from "vitest";
 import { formatPacketStats, summarizePacketStats } from "../stats";
 
-function value(signal: string, v: number, over: Partial<LatestSignalValue> = {}): LatestSignalValue {
+function value(
+  signal: string,
+  v: number,
+  over: Partial<LatestSignalValue> = {},
+): LatestSignalValue {
   return {
     source: "packet",
     message: "en0/stats",
@@ -44,7 +48,11 @@ describe("packet stats strip", () => {
 
   it("sums captures and names how many, and shows truncation once it is non-zero", () => {
     const wlan = EN0.map((v) => value(v.signal, Number(v.value), { message: "wlan0/stats" }));
-    const both = [...EN0, ...wlan, value("truncated_count", 7, { message: "wlan0/stats", timeNs: "200" })];
+    const both = [
+      ...EN0,
+      ...wlan,
+      value("truncated_count", 7, { message: "wlan0/stats", timeNs: "200" }),
+    ];
     const summary = summarizePacketStats(both);
     expect(summary && formatPacketStats(summary)).toBe(
       "Packets 3,000 · Dropped 4 kernel / 0 agent · 241 pps · 3.0 Mbit/s · Truncated 7 · 2 captures",

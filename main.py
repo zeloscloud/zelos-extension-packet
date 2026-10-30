@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Zelos Packet extension - live network capture and pcap decode."""
 
 import logging
@@ -6,13 +5,7 @@ from pathlib import Path
 
 import rich_click as click
 
-from zelos_extension_packet import ACTION_PREFIX as _ACTION_PREFIX
 from zelos_extension_packet import cli as cli_commands
-
-#: Re-exported so the at-rest inventory dump - which reads this entry module -
-#: addresses the actions the same way the live registration does. Without it the
-#: dump falls back to the module name and ships them under `main/`.
-ACTION_PREFIX = _ACTION_PREFIX
 
 # Configure rich-click
 click.rich_click.USE_RICH_MARKUP = True
@@ -21,9 +14,7 @@ click.rich_click.SHOW_ARGUMENTS = True
 click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 click.rich_click.STYLE_ERRORS_SUGGESTION = "yellow italic"
 
-# INFO level keeps debug chatter out of the backend. Log records reach the
-# trace under the extension's own source (`Packet/log`) once a command has
-# called `zelos_sdk.init`; see `cli._attach_trace_logging`.
+# Records reach the trace under `Packet/log` once a command calls `zelos_sdk.init`.
 logging.basicConfig(level=logging.INFO)
 
 

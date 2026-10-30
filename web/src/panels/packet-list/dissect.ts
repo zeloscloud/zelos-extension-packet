@@ -66,7 +66,9 @@ function hex(value: number, width: number): string {
 }
 
 function mac(bytes: Uint8Array, offset: number): string {
-  return Array.from(bytes.subarray(offset, offset + 6), (b) => b.toString(16).padStart(2, "0")).join(":");
+  return Array.from(bytes.subarray(offset, offset + 6), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join(":");
 }
 
 function ipv4(bytes: Uint8Array, offset: number): string {
@@ -116,7 +118,13 @@ function ipv6(bytes: Uint8Array, offset: number): string {
 // ---------------------------------------------------------------- node build
 
 /** A leaf. `len` is clamped so a declared length longer than the capture cannot select bytes we lack. */
-function field(bytes: Uint8Array, label: string, value: string, offset: number, len: number): DissectNode {
+function field(
+  bytes: Uint8Array,
+  label: string,
+  value: string,
+  offset: number,
+  len: number,
+): DissectNode {
   return { label, value, offset, len: Math.max(0, Math.min(len, bytes.length - offset)) };
 }
 
@@ -124,7 +132,12 @@ function field(bytes: Uint8Array, label: string, value: string, offset: number, 
 function cutShort(bytes: Uint8Array, label: string, offset: number, needed: number): DissectNode {
   const at = Math.min(offset, bytes.length);
   const have = bytes.length - at;
-  return { label, value: `truncated: ${have} of ${needed} header bytes captured`, offset: at, len: have };
+  return {
+    label,
+    value: `truncated: ${have} of ${needed} header bytes captured`,
+    offset: at,
+    len: have,
+  };
 }
 
 /** Whatever the recognized headers did not claim. */
@@ -244,7 +257,13 @@ function dissectIpv4(bytes: Uint8Array, offset: number, out: DissectNode[]): voi
       field(bytes, "DSCP / ECN", hex(bytes[offset + 1] ?? 0, 1), offset + 1, 1),
       field(bytes, "Total Length", String(be16(bytes, offset + 2) ?? 0), offset + 2, 2),
       field(bytes, "Identification", hex(be16(bytes, offset + 4) ?? 0, 2), offset + 4, 2),
-      field(bytes, "Flags / Fragment Offset", `${hex(flagsAndFrag, 2)} (${fragOffset} bytes)`, offset + 6, 2),
+      field(
+        bytes,
+        "Flags / Fragment Offset",
+        `${hex(flagsAndFrag, 2)} (${fragOffset} bytes)`,
+        offset + 6,
+        2,
+      ),
       field(bytes, "Time to Live", String(bytes[offset + 8] ?? 0), offset + 8, 1),
       field(bytes, "Protocol", String(proto), offset + 9, 1),
       field(bytes, "Checksum", hex(be16(bytes, offset + 10) ?? 0, 2), offset + 10, 2),
@@ -274,7 +293,13 @@ function dissectIpv6(bytes: Uint8Array, offset: number, out: DissectNode[]): voi
     offset,
     len: 40,
     children: [
-      field(bytes, "Version / Traffic Class / Flow Label", hex(be32(bytes, offset) ?? 0, 4), offset, 4),
+      field(
+        bytes,
+        "Version / Traffic Class / Flow Label",
+        hex(be32(bytes, offset) ?? 0, 4),
+        offset,
+        4,
+      ),
       field(bytes, "Payload Length", String(be16(bytes, offset + 4) ?? 0), offset + 4, 2),
       field(bytes, "Next Header", String(next), offset + 6, 1),
       field(bytes, "Hop Limit", String(bytes[offset + 7] ?? 0), offset + 7, 1),
@@ -327,7 +352,10 @@ function dissectArp(bytes: Uint8Array, offset: number, out: DissectNode[]): void
   const targetIp = ipv4(bytes, offset + 24);
   out.push({
     label: "ARP",
-    value: operation === 1 ? `who has ${targetIp}? tell ${senderIp}` : `${senderIp} is at ${mac(bytes, offset + 8)}`,
+    value:
+      operation === 1
+        ? `who has ${targetIp}? tell ${senderIp}`
+        : `${senderIp} is at ${mac(bytes, offset + 8)}`,
     offset,
     len: 28,
     children: [
@@ -494,7 +522,10 @@ export function dissectFrame(bytes: Uint8Array, linkType: number | null): Dissec
 }
 
 /** The deepest node whose bytes contain `offset` — what clicking a byte in the hex view selects. */
-export function findNodeAtOffset(nodes: readonly DissectNode[], offset: number): DissectNode | null {
+export function findNodeAtOffset(
+  nodes: readonly DissectNode[],
+  offset: number,
+): DissectNode | null {
   for (const node of nodes) {
     if (offset < node.offset || offset >= node.offset + node.len) continue;
     return findNodeAtOffset(node.children ?? [], offset) ?? node;

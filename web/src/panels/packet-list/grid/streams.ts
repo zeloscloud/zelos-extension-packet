@@ -1,7 +1,10 @@
 import type { AppBridgePanelSignal, ColumnMetadata } from "@zeloscloud/app-extension-sdk";
 
 /** The identity fields a data column is matched against a bound signal by. */
-type ColumnIdentity = Pick<ColumnMetadata, "source" | "message" | "signal" | "producer" | "tracePath" | "dataSegmentId">;
+type ColumnIdentity = Pick<
+  ColumnMetadata,
+  "source" | "message" | "signal" | "producer" | "tracePath" | "dataSegmentId"
+>;
 
 /** The fields of a bound signal its ownership of a column depends on. */
 export type BoundSignal = Pick<
@@ -11,7 +14,11 @@ export type BoundSignal = Pick<
 
 /** Same path, and every scope the signal pins agrees; a scope it leaves unset admits any value. */
 function ownsColumn(signal: BoundSignal, column: ColumnIdentity): boolean {
-  if (column.source !== signal.source || column.message !== signal.message || column.signal !== signal.signal) {
+  if (
+    column.source !== signal.source ||
+    column.message !== signal.message ||
+    column.signal !== signal.signal
+  ) {
     return false;
   }
   if (signal.producer != null && (column.producer ?? null) !== signal.producer) return false;

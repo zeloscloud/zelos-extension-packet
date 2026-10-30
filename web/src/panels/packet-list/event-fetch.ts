@@ -58,7 +58,10 @@ export const PACKET_EVENT_FIELDS = [
 export const PACKET_FRAME_FIELDS = ["link_type", "frame"] as const;
 
 /** "Copy row as JSON": every field in schema order, `frame` included, so it can be pasted into a decoder. */
-export function packetRowJson(row: PacketRow, cells: Record<string, QueryCellValue>): Record<string, unknown> {
+export function packetRowJson(
+  row: PacketRow,
+  cells: Record<string, QueryCellValue>,
+): Record<string, unknown> {
   const json: Record<string, unknown> = { time_s: row.timeS };
   for (const field of PACKET_EVENT_FIELDS) json[field] = cells[field] ?? null;
   json.producer = row.producer;
@@ -83,7 +86,12 @@ function streamFieldIndices(
   const wanted = new Set<string>(fields);
   const indexByField = new Map<string, number>();
   columns.forEach((column, i) => {
-    if (column.source === "time_s" || !wanted.has(column.signal) || streamKeyOf(column) !== streamKey) return;
+    if (
+      column.source === "time_s" ||
+      !wanted.has(column.signal) ||
+      streamKeyOf(column) !== streamKey
+    )
+      return;
     indexByField.set(column.signal, i);
   });
   return indexByField;

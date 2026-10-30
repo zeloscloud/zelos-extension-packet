@@ -38,8 +38,12 @@ describe("the dev feed", () => {
 
     const panel = bridge.getSnapshot().panel;
     expect(panel?.signals).toEqual(DEV_SIGNALS);
-    expect(DEV_SIGNALS.filter((signal) => signal.eventType === "zelos.packet.v1")).toHaveLength(PACKET_EVENT_FIELDS.length);
-    expect(DEV_SIGNALS.filter((signal) => signal.eventType === "zelos.packet.stats.v1")).toHaveLength(10);
+    expect(DEV_SIGNALS.filter((signal) => signal.eventType === "zelos.packet.v1")).toHaveLength(
+      PACKET_EVENT_FIELDS.length,
+    );
+    expect(
+      DEV_SIGNALS.filter((signal) => signal.eventType === "zelos.packet.stats.v1"),
+    ).toHaveLength(10);
     expect(bridge.getSnapshot().time?.cursorS).not.toBe(firstCursor);
 
     const rows = frames.filter((frame) => frame.id === "packets").at(-1);
@@ -52,7 +56,9 @@ describe("the dev feed", () => {
     const udp = melted.find((row) => row.proto === "UDP");
     if (!udp) throw new Error("no UDP packet");
     const cells = await fetchPacketEventFields(bridge, udp, ["link_type", "frame"], true);
-    const layers = dissectFrame(parseFrameHex(String(cells.frame)), Number(cells.link_type)).map((node) => node.label);
+    const layers = dissectFrame(parseFrameHex(String(cells.frame)), Number(cells.link_type)).map(
+      (node) => node.label,
+    );
     expect(layers.slice(0, 3)).toEqual(["Ethernet", "IPv4", "UDP"]);
 
     stop();

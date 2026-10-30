@@ -10,7 +10,16 @@ import type {
   GridReadyEvent,
 } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
-import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useInsertionEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { readSession, sessionKey, writeSession } from "./session";
 import { createSearchMatcher } from "./search";
 import { AG_GRID_THEME_DARK, AG_GRID_THEME_LIGHT } from "./theme";
@@ -42,7 +51,11 @@ const quickFilterParser = (quickFilter: string): string[] => {
 };
 
 /** No per-column sort, since the rows are a sequence; the Time column turns it back on for itself. */
-const TIME_ORDERED_COL_DEF: ColDef = { resizable: true, sortable: false, filter: "agTextColumnFilter" };
+const TIME_ORDERED_COL_DEF: ColDef = {
+  resizable: true,
+  sortable: false,
+  filter: "agTextColumnFilter",
+};
 
 // ── Font size ────────────────────────────────────────────────────────────────────────────────────
 
@@ -71,11 +84,15 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /** The saved `options.grid.filterModel`, checked a level deep since `setFilterModel` is unguarded; `{}` is a state. */
-export function resolveFilterModel(options: Record<string, unknown> | null | undefined): FilterModel | undefined {
+export function resolveFilterModel(
+  options: Record<string, unknown> | null | undefined,
+): FilterModel | undefined {
   const grid = options?.grid;
   if (!isPlainObject(grid)) return undefined;
   const model = grid.filterModel;
-  return isPlainObject(model) && Object.values(model).every(isPlainObject) ? (model as FilterModel) : undefined;
+  return isPlainObject(model) && Object.values(model).every(isPlainObject)
+    ? (model as FilterModel)
+    : undefined;
 }
 
 /** Without `hide`: visibility is a panel option, and a saved `hide` would fight it and loop back into writes. */
@@ -91,18 +108,31 @@ function sameState(a: ColumnState, b: ColumnState): boolean {
 }
 
 function columnStatesEqual(a: readonly ColumnState[], b: readonly ColumnState[]): boolean {
-  return a.length === b.length && a.every((state, i) => b[i] !== undefined && sameState(state, b[i]));
+  return (
+    a.length === b.length && a.every((state, i) => b[i] !== undefined && sameState(state, b[i]))
+  );
 }
 
 function persistableColumnState(columnState: ColumnState[]): ColumnState[] {
-  return columnState.map(({ hide: _hide, ...rest }) => rest);
+  return columnState.map((state) => {
+    const persisted = { ...state };
+    delete persisted.hide;
+    return persisted;
+  });
 }
 
 /** A right-clicked row id against the latest rows, scanned on demand: live rows are replaced several times a second. */
-export function useGridRowLookup<TRow extends { id: string }>(rows: readonly TRow[]): (rowId: string) => TRow | null {
+export function useGridRowLookup<TRow extends { id: string }>(
+  rows: readonly TRow[],
+): (rowId: string) => TRow | null {
   const rowsRef = useRef(rows);
-  rowsRef.current = rows;
-  return useCallback((rowId: string) => rowsRef.current.find((row) => row.id === rowId) ?? null, []);
+  useInsertionEffect(() => {
+    rowsRef.current = rows;
+  });
+  return useCallback(
+    (rowId: string) => rowsRef.current.find((row) => row.id === rowId) ?? null,
+    [],
+  );
 }
 
 const NO_OPTION_DEFAULTS: Record<string, unknown> = {};
@@ -127,7 +157,9 @@ export function useGridPanelState<TRow extends { id: string }>({
 
   const searchKey = sessionKey(sessionId, "search");
   const columnsKey = sessionKey(sessionId, "columns");
-  const [quickFilterText, setQuickFilterText] = useState(() => readSession<string>(searchKey) ?? "");
+  const [quickFilterText, setQuickFilterText] = useState(
+    () => readSession<string>(searchKey) ?? "",
+  );
   const [columnState, setColumnState] = useState(() => readSession<ColumnState[]>(columnsKey));
 
   useEffect(() => writeSession(searchKey, quickFilterText || null), [searchKey, quickFilterText]);
@@ -150,7 +182,9 @@ export function useGridPanelState<TRow extends { id: string }>({
 
   // Read live: a grid remounting inside the panel fires `gridReady` again and must get the current layout.
   const columnStateRef = useRef(columnState);
-  columnStateRef.current = columnState;
+  useInsertionEffect(() => {
+    columnStateRef.current = columnState;
+  });
 
   const onGridReady = useCallback(
     (event: GridReadyEvent<TRow>) => {

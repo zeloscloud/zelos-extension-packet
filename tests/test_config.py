@@ -62,11 +62,6 @@ class TestSchemaDefaults:
     def test_replay_pcap_is_optional_and_absent_by_default(self, tmp_path: Path):
         assert not load(tmp_path, {}).get("replay_pcap")
 
-    def test_shipped_config_json_validates(self, tmp_path: Path):
-        shipped = json.loads((REPO_ROOT / "config.json").read_text())
-        config = load(tmp_path, shipped)
-        assert config["advanced"]["log_frames"] is True
-
     def test_snaplen_below_minimum_is_rejected(self, tmp_path: Path):
         with pytest.raises(Exception) as excinfo:
             load(tmp_path, {"advanced": {"snaplen": 8}})

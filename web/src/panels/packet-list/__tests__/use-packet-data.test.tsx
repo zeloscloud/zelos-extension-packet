@@ -13,15 +13,19 @@ import { packetQueryFields, resolvePacketPanelOptions, visiblePacketFields } fro
 import { usePacketData } from "../use-packet-data";
 import { usePacketStats } from "../use-packet-stats";
 
-const SIGNALS: AppBridgePanelSignal[] = ["frame_no", "orig_len", "info", "vlan_id"].map((signal) => ({
-  source: "Packet",
-  message: "eth0/packets",
-  signal,
-  color: "#888",
-  path: `Packet/eth0/packets.${signal}`,
-}));
+const SIGNALS: AppBridgePanelSignal[] = ["frame_no", "orig_len", "info", "vlan_id"].map(
+  (signal) => ({
+    source: "Packet",
+    message: "eth0/packets",
+    signal,
+    color: "#888",
+    path: `Packet/eth0/packets.${signal}`,
+  }),
+);
 
-const FIELDS: ReadonlySet<PacketField> = packetQueryFields(visiblePacketFields(resolvePacketPanelOptions(null), false));
+const FIELDS: ReadonlySet<PacketField> = packetQueryFields(
+  visiblePacketFields(resolvePacketPanelOptions(null), false),
+);
 const WITH_VLAN: ReadonlySet<PacketField> = packetQueryFields(
   visiblePacketFields(resolvePacketPanelOptions({ showVlan: true }), false),
 );
@@ -92,7 +96,10 @@ function packetsFrame(frameNos: number[], info: string[]): Omit<AppBridgePanelDa
 }
 
 const ui = (frozen: boolean, fields = FIELDS) => (
-  <ZelosBridgeProvider showDevelopmentBanner={false} connectOptions={{ panel: { signals: SIGNALS } }}>
+  <ZelosBridgeProvider
+    showDevelopmentBanner={false}
+    connectOptions={{ panel: { signals: SIGNALS } }}
+  >
     <Rows frozen={frozen} fields={fields} />
   </ZelosBridgeProvider>
 );
@@ -136,7 +143,8 @@ describe("usePacketData", () => {
 
     rerender(ui(true, WITH_VLAN));
     await settled(["panel.subscribe", "panel.unsubscribe", "panel.subscribe"]);
-    const widened = calls.filter((call) => call.method === "panel.subscribe").at(-1)?.params as PanelSubscribeParams;
+    const widened = calls.filter((call) => call.method === "panel.subscribe").at(-1)
+      ?.params as PanelSubscribeParams;
     expect(widened.signals).toContain("Packet/eth0/packets.vlan_id");
     // The old window stays on screen until the new one answers.
     expect(screen.getByTestId("rows").textContent).toBe("first,second");
