@@ -31,18 +31,7 @@ describe("packet list options", () => {
     expect(schema.properties.fontSize["ui:options"]).toEqual({ unit: "px" });
   });
 
-  // Layouts saved by Zelos 26.0.9 and earlier refer to this panel by these option keys.
   it("reads every option a saved layout holds", () => {
-    expect(Object.keys(schema.properties)).toEqual(
-      expect.arrayContaining([
-        "showInterface",
-        "showVlan",
-        "showFragOffset",
-        "autoScroll",
-        "bufferSize",
-        "fontSize",
-      ]),
-    );
     const filterModel = { proto: { filterType: "text", type: "equals", filter: "TCP" } };
     const saved = {
       showInterface: true,

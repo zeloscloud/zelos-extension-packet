@@ -686,15 +686,15 @@ def list_interfaces() -> list[dict[str, Any]]:
     for iface in pkg.module().list_interfaces():
         interfaces.append(
             {
-                "name": getattr(iface, "name", str(iface)),
-                "index": getattr(iface, "index", None),
-                "is_up": getattr(iface, "is_up", None),
+                "name": iface.name,
+                "index": iface.index,
+                "is_up": iface.is_up,
                 # IFF_RUNNING: administratively up is not the same as "has a
                 # carrier", and capturing a down link looks like a hang.
-                "is_running": getattr(iface, "is_running", None),
-                "is_loopback": getattr(iface, "is_loopback", None),
-                "addresses": list(getattr(iface, "addresses", []) or []),
-                "mac": getattr(iface, "mac", None),
+                "is_running": iface.is_running,
+                "is_loopback": iface.is_loopback,
+                "addresses": list(iface.addresses),
+                "mac": iface.mac,
             }
         )
     return interfaces

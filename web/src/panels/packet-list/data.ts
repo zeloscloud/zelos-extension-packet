@@ -68,14 +68,6 @@ function keepIdentity(before: PacketRow | undefined, next: PacketRow): PacketRow
     : next;
 }
 
-/** Packets without `frame_no`, from a Packet extension older than it: rows need that identity, so none are listed. */
-export function packetsLackFrameNumbers(dataset: QueryDataMulti | null | undefined): boolean {
-  const columns = dataset?.columns ?? [];
-  return (
-    columns.some((c) => c.signal === "orig_len") && !columns.some((c) => c.signal === "frame_no")
-  );
-}
-
 /** Row `i` of `stream`, or null when it is another stream's. Row queries return plain values, never value codes. */
 function meltStreamRow(
   stream: FieldStream<PacketField>,

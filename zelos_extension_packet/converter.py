@@ -278,8 +278,7 @@ def convert_pcap(
 def _is_truncated(exc: BaseException) -> bool:
     """zelos-packet raises `CaptureTruncatedError` for a compressed capture
     that stopped decoding part-way, after flushing every packet before it."""
-    truncated = getattr(pkg.module(), "CaptureTruncatedError", None)
-    return truncated is not None and isinstance(exc, truncated)
+    return isinstance(exc, pkg.module().CaptureTruncatedError)
 
 
 def convert_paths(
