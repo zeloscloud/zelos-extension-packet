@@ -334,11 +334,21 @@ class TestRemediationText:
         assert "access_bpf" in text
         assert "ChmodBPF" in text
 
-    def test_both_platforms_disclose_the_relogin(self):
-        """Membership only applies at next login - the single most common
-        support question."""
-        for system in ("Linux", "Darwin"):
-            assert "log out and back in" in builtin_grant_instructions(system=system)
+    def test_linux_discloses_the_relogin(self):
+        """Linux stamps a session's groups at login - the single most common support question."""
+        assert "log out and back in" in builtin_grant_instructions(system="Linux")
+
+    def test_macos_asks_only_for_a_zelos_restart(self):
+        """macOS resolves group membership per process, so a reopened app has the group."""
+        text = builtin_grant_instructions(system="Darwin")
+        assert "quit and reopen Zelos" in text
+        assert "log out" not in text
+
+    def test_the_session_step_follows_the_native_text_only_on_linux(self, fake_packet, monkeypatch):
+        for system, expected in (("Linux", True), ("Darwin", False)):
+            monkeypatch.setattr(capture_mod.platform, "system", lambda system=system: system)
+            text = capture_grant_instructions()
+            assert ("Closing and reopening Zelos is NOT enough" in text) is expected, system
 
     def test_only_macos_claims_the_group_confers_sending(self):
         """The two grants are genuinely different and the text must not blur
