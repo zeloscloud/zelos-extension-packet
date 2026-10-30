@@ -44,9 +44,6 @@ import { usePacketData } from "./use-packet-data";
 import { usePacketStats } from "./use-packet-stats";
 
 const PACKET_GONE = "This packet is no longer available.";
-/** A window with packets but no `frame_no`: the capture predates the column the panel keys on. */
-const UNNUMBERED =
-  "This capture carries no frame numbers. Update the Packet extension and restart it to list its packets.";
 const EMPTY_MESSAGE = "Drag packets onto this panel to view them.";
 
 /** Clicking a row selects it and opens its frame in the drawer, Wireshark's packet list. */
@@ -104,7 +101,7 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
   const queryFields = useMemo(() => packetQueryFields(visibleFields), [visibleFields]);
 
   const [frozen, setFrozen] = useState(false);
-  const { rows, totalRows, isLoading, error, unnumbered } = usePacketData(
+  const { rows, totalRows, isLoading, error } = usePacketData(
     packetSignals,
     opts.bufferSize,
     queryFields,
@@ -314,25 +311,21 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
         </>
       }
     >
-      {unnumbered ? (
-        <PanelState description={UNNUMBERED} />
-      ) : (
-        <GridContextMenu resolveTarget={resolveMenuTarget} onOpen={openMenu}>
-          <AgGridReact<PacketRow>
-            {...gridProps}
-            rowData={rows}
-            columnDefs={columnDefs}
-            rowClassRules={rowClassRules}
-            loading={isLoading}
-            {...gridEvents}
-            isExternalFilterPresent={isExternalFilterPresent}
-            doesExternalFilterPass={doesExternalFilterPass}
-            onModelUpdated={onModelUpdated}
-            rowSelection={ROW_SELECTION}
-            onRowClicked={onRowClicked}
-          />
-        </GridContextMenu>
-      )}
+      <GridContextMenu resolveTarget={resolveMenuTarget} onOpen={openMenu}>
+        <AgGridReact<PacketRow>
+          {...gridProps}
+          rowData={rows}
+          columnDefs={columnDefs}
+          rowClassRules={rowClassRules}
+          loading={isLoading}
+          {...gridEvents}
+          isExternalFilterPresent={isExternalFilterPresent}
+          doesExternalFilterPass={doesExternalFilterPass}
+          onModelUpdated={onModelUpdated}
+          rowSelection={ROW_SELECTION}
+          onRowClicked={onRowClicked}
+        />
+      </GridContextMenu>
     </GridPanelBody>
   );
 }

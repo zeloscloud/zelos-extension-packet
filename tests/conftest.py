@@ -264,6 +264,10 @@ class FakeInterfaceNotFoundError(ValueError):
     typo'd interface is not a privilege problem)."""
 
 
+class FakeCaptureTruncatedError(RuntimeError):
+    """Stands in for `zelos_packet.CaptureTruncatedError`."""
+
+
 class FakeTraceSource:
     """Stands in for `zelos_sdk.TraceSourceCache` / `TraceSource`.
 
@@ -320,6 +324,7 @@ def make_fake_module(
         PacketDecoder=FakeDecoder,
         CapturePermissionError=FakeCapturePermissionError,
         InterfaceNotFoundError=FakeInterfaceNotFoundError,
+        CaptureTruncatedError=FakeCaptureTruncatedError,
         list_interfaces=lambda: list(ifaces),
         capture_supported=lambda: True,
         # Asked before construction so the session knows whether `source=` may

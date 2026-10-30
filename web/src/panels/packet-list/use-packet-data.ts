@@ -5,7 +5,7 @@ import type {
 } from "@zeloscloud/app-extension-sdk";
 import { usePanelData } from "@zeloscloud/app-extension-sdk/react";
 import { useMemo, useState } from "react";
-import { meltPacketRows, type PacketField, type PacketRow, packetsLackFrameNumbers } from "./data";
+import { meltPacketRows, type PacketField, type PacketRow } from "./data";
 import { toTimeMode } from "./grid/format";
 
 /** Each bound path once: a signal expanded across segments or producers repeats its path. */
@@ -24,7 +24,6 @@ export function usePacketData(
   totalRows: number;
   isLoading: boolean;
   error: string | null;
-  unnumbered: boolean;
 } {
   const paths = useMemo(
     () => uniquePaths(signals.filter((signal) => fields.has(signal.signal as PacketField))),
@@ -90,6 +89,5 @@ export function usePacketData(
     totalRows: shown?.totalRows ?? 0,
     isLoading: (shown === null || shown.isLoading) && rows.length === 0 && paths.length > 0,
     error: shown?.error ?? null,
-    unnumbered: rows.length === 0 && packetsLackFrameNumbers(dataset),
   };
 }

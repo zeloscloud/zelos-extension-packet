@@ -4,7 +4,7 @@ import type {
   QueryDataMulti,
 } from "@zeloscloud/app-extension-sdk";
 import { describe, expect, it } from "vitest";
-import { meltPacketRows, packetsLackFrameNumbers } from "../data";
+import { meltPacketRows } from "../data";
 
 /**
  * The grouping and scope-dropping rules are `buildFieldStreams`'. What's asserted here is the melt: the row
@@ -160,21 +160,6 @@ describe("meltPacketRows", () => {
     );
 
     expect(rows.map((r) => [r.timeS, r.info])).toEqual([[1, "SYN"]]);
-  });
-
-  it("tells a window from an older extension, whose packets carry no frame numbers, apart from an empty one", () => {
-    expect(
-      packetsLackFrameNumbers(dataset([TIME_COL, col({ signal: "orig_len" })], [[1], [74]])),
-    ).toBe(true);
-    expect(
-      packetsLackFrameNumbers(
-        dataset(
-          [TIME_COL, col({ signal: "orig_len" }), col({ signal: "frame_no" })],
-          [[1], [74], [1]],
-        ),
-      ),
-    ).toBe(false);
-    expect(packetsLackFrameNumbers(dataset([TIME_COL], [[]]))).toBe(false);
   });
 
   it("addresses each packet by (streamKey, frame_no), so the byte view can re-fetch exactly it", () => {
