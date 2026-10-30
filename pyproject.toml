@@ -1,7 +1,7 @@
 [project]
 name = "zelos-extension-packet"
 version = "0.1.0"
-description = "Live network packet capture and pcap decode for Zelos"
+description = "Capture live network traffic or decode pcap and pcapng files (Linux, Apple silicon Macs) into packets in a Wireshark-style Packet List, with SOME/IP, SOME/IP-SD and DoIP decoded and SOME/IP payloads read from ARXML."
 authors = [{ name = "Zelos", email = "support@zeloscloud.io" }]
 readme = "README.md"
 requires-python = ">=3.11"
