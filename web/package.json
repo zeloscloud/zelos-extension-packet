@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Live network packet capture and pcap decode for Zelos",
+  "description": "Capture live network traffic or decode pcap and pcapng files (Linux, Apple silicon Macs) into packets in a Wireshark-style Packet List, with SOME/IP, SOME/IP-SD and DoIP decoded and SOME/IP payloads read from ARXML.",
   "author": "Zelos",
   "packageManager": "npm@11.19.0",
   "engines": {

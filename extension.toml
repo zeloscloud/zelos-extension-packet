@@ -1,12 +1,12 @@
 name = "Packet"
 version = "0.1.0"
-description = "Live network packet capture and pcap decode for Zelos"
+description = "Capture live network traffic or decode pcap and pcapng files (Linux, Apple silicon Macs) into packets in a Wireshark-style Packet List, with SOME/IP, SOME/IP-SD and DoIP decoded and SOME/IP payloads read from ARXML."
 author = "Zelos"
 repository = "https://github.com/zeloscloud/zelos-extension-packet"
 # At most 20 keywords and 10 categories. Marketplace search matches both, the name, description,
 # author and repository. Zelos AI sees the name, description and keywords, not the categories.
-keywords = ["packet", "pcap", "network", "ethernet", "tcpdump", "sniffer"]
-categories = ["Networking", "Industrial", "IoT"]
+keywords = ["packet", "pcap", "network", "ethernet", "tcpdump", "sniffer", "packet capture", "wireshark", "network analyzer", "someip", "some ip", "autosar", "iso 13400", "uds", "automotive ethernet", "vlan", "tcp", "udp", "arp", "icmp"]
+categories = ["Networking", "Industrial", "IoT", "Automotive", "Diagnostics"]
 icon = "assets/icon.png"
 readme = "README.md"
 
