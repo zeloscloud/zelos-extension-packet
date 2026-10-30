@@ -22,7 +22,7 @@ sudo /path/to/python -m zelos_packet install-helper
 - 🔐 **Linux** installs a small privileged helper (`cap_net_raw` only) and a `zelos-packet` group; **macOS** installs a boot-time daemon that puts `/dev/bpf*` in the `access_bpf` group
 - 🛡️ **Linux** group members can capture on the machine, nothing more — the helper drops every capability before it reads a byte and streams decoded packets, so it never hands out a socket anyone could send with
 - ⚠️ **macOS** `access_bpf` members can also **send** arbitrary frames: a bpf device is opened read-write and capture needs the write side
-- 🔁 Log out and back in, then restart the agent — a session's groups are fixed at login
+- 🔁 **Linux**: log out and back in, then restart the agent — a session's groups are fixed at login; **macOS**: quit and reopen Zelos — a running app keeps the groups it started with
 - ✅ `python -m zelos_packet status` says whether capture would work right now
 - 🪟 Windows and Intel Macs have no capture agent this release — see [Platforms](#platforms)
 

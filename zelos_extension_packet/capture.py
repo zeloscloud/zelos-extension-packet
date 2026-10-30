@@ -330,8 +330,8 @@ That installs a boot-time daemon (Wireshark's ChmodBPF shape) putting
 can also SEND arbitrary frames on this machine, not only capture them: a bpf
 device is opened read-write and capture needs the write side.
 
-Then log out and back in, and restart the agent: a session's groups are fixed
-at login. Check the grant with:
+Then quit and reopen Zelos: a running app keeps the groups it started with,
+and macOS gives a new process the group right away. Check the grant with:
 
     {executable} -m zelos_packet status
 """
@@ -373,7 +373,7 @@ def capture_grant_instructions(
             if resolved in ("Linux", "Darwin") and _command_of(hint) not in native:
                 parts.append(hint)
             # The gap message, when present, says this and more precisely.
-            if resolved in ("Linux", "Darwin") and not gap:
+            if resolved == "Linux" and not gap:
                 parts.append(_SESSION_STEP)
             parts.append(_REPLAY_HINT)
             return "\n\n".join(parts)
@@ -422,7 +422,7 @@ def _session_group_gap(system: str | None = None) -> str | None:
     )
 
 
-#: A new group reaches a process only through a new login session.
+#: Linux: a new group reaches a process only through a new login session.
 _SESSION_STEP = """After granting, your current login session still does not have the new group.
 Closing and reopening Zelos is NOT enough:
 
