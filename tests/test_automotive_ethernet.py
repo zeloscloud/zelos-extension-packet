@@ -14,7 +14,6 @@ from pathlib import Path
 import pytest
 from zelos_sdk.extensions import load_config
 
-from zelos_extension_packet import pkg
 from zelos_extension_packet.capture import (
     AutoEthConfig,
     CaptureSession,
@@ -40,7 +39,7 @@ class TestConfig:
         config = load_config(config_path=config_file, schema_path=SCHEMA)
         assert parse_autoeth(config) == AutoEthConfig(sd_port=30490, doip_port=13400)
 
-    def test_null_ports_turn_dissectors_off_and_arxml_resolves(self, tmp_path, monkeypatch):
+    def test_null_ports_turn_dissectors_off_and_arxml_resolves(self, monkeypatch):
         monkeypatch.chdir(FILES)
         autoeth = parse_autoeth(
             {
@@ -88,10 +87,6 @@ class TestForwarding:
         assert decoder.kwargs["pdu_source"] is None
 
 
-def _has_arxml() -> bool:
-    return pkg.available() and "arxml" in (pkg.module().PacketDecoder.__doc__ or "")
-
-
 def _column(trace: Path, path: str) -> list:
     pa = pytest.importorskip("pyarrow")
     import zelos_sdk
@@ -112,8 +107,6 @@ def _column(trace: Path, path: str) -> list:
 class TestRealPackage:
     @needs_real_packet
     def test_convert_decodes_someip_by_arxml(self, tmp_path: Path):
-        if not _has_arxml():
-            pytest.skip("zelos-packet predates SOME/IP and ARXML decode")
         # 50 Status notifications (speed u16 x0.01, temperature i16, mode u8), then
         # a DoIP vehicle identification request.
         frames = [

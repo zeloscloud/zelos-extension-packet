@@ -1,36 +1,15 @@
 [project]
 name = "zelos-extension-packet"
-version = "0.0.4"
-description = "Live network packet capture and pcap decode for Zelos"
-authors = [{ name = "zeloscloud", email = "info@zeloscloud.io" }]
+version = "0.1.0"
+description = "Capture live network traffic or decode pcap and pcapng files (Linux, Apple silicon Macs) into packets in a Wireshark-style Packet List, with SOME/IP, SOME/IP-SD and DoIP decoded and SOME/IP payloads read from ARXML."
+authors = [{ name = "Zelos", email = "support@zeloscloud.io" }]
 readme = "README.md"
-license = { text = "MIT" }
 requires-python = ">=3.11"
 keywords = ["zelos", "extension", "packet", "pcap", "network"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-]
 dependencies = [
-    # 0.0.13a1 has `hidden=` actions (older SDKs swallow the
-    # keyword and still list the action); it also carries the evt_flush ABI
-    # slot the capture path needs. The prerelease marker has to appear HERE,
-    # on a direct dependency: uv enables prereleases per package only when a
-    # direct requirement names one, so inheriting the same floor through
-    # zelos-packet leaves `uv sync` unsatisfiable in the extension host.
     "zelos-sdk>=0.0.13a1",
     "rich-click>=1.8.0",
-    # Rust-cored capture + decode. Live capture is Linux (AF_PACKET) and macOS
-    # (/dev/bpf) only in this release; the decode path is portable, so there is
-    # no sys_platform marker here.
-    #
-    # Pinned `==`: this extension calls the native API directly, with no
-    # keyword- or method-alias shims, so the two ship in lockstep.
+    # Pinned: the extension calls the native API directly, so the two ship in lockstep.
     "zelos-packet==0.0.4",
 ]
 
@@ -41,30 +20,32 @@ zelos-extension-packet = "main:cli"
 Homepage = "https://github.com/zeloscloud/zelos-extension-packet"
 Repository = "https://github.com/zeloscloud/zelos-extension-packet"
 Issues = "https://github.com/zeloscloud/zelos-extension-packet/issues"
-Documentation = "https://docs.zeloscloud.io/extensions"
+Documentation = "https://docs.zeloscloud.io/app/extensions/"
 
 [project.optional-dependencies]
-# Progress bars for `convert`. Soft: absent tqdm logs an install hint and the
-# conversion runs unchanged.
+# Progress bars for `convert`; without tqdm it logs an install hint and converts unchanged.
 cli = [
     "tqdm>=4.0.0",
 ]
+
+[dependency-groups]
 dev = [
-    "pytest>=8.4.2",
-    "pre-commit>=4.3.0",
-    "ruff>=0.14.2",
-    "jsonschema>=4.0.0",
+    "pytest>=9.1.1",
+    "pre-commit>=4.6.2",
+    "ruff>=0.16.10",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+required-version = ">=0.9.5"
+
 [tool.hatch.build.targets.wheel]
 packages = ["zelos_extension_packet"]
 
-# `main.py` is the extension entry point *and* the console script's module
-# (`main:cli`), so the wheel has to carry it alongside the package.
+# The console script `main:cli` lives outside the package.
 [tool.hatch.build.targets.wheel.force-include]
 "main.py" = "main.py"
 
@@ -73,7 +54,7 @@ testpaths = ["tests"]
 addopts = "--log-cli-level=INFO"
 
 [tool.ruff]
-target-version = "py311"
+target-version = 'py311'
 line-length = 100
 
 [tool.ruff.lint]
@@ -87,9 +68,3 @@ select = [
     "C4",   # flake8-comprehensions
     "PTH",  # flake8-use-pathlib
 ]
-ignore = [
-    "B008",   # function call in defaults (common in decorators)
-]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"

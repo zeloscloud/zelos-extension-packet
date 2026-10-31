@@ -12,11 +12,10 @@ from types import FrameType
 
 import rich_click as click
 import zelos_sdk
-from zelos_sdk.extensions import load_config
+from zelos_sdk.extensions import ConfigValidationError, load_config
 
 from . import ACTION_PREFIX, pkg
 from . import actions as packet_actions
-from .agent_filter import AMPLIFICATION_WARNING, AgentEndpoint, is_loopback_interface
 from .agent_filter import resolve_agent_endpoint as _resolve_agent_endpoint
 from .capture import (
     DEFAULT_STORED_FRAME_BYTES,
@@ -37,7 +36,6 @@ from .converter import capture_stem, convert_paths
 
 logger = logging.getLogger(__name__)
 
-#: Defined once in the package root - the at-rest action inventory reads it too.
 SOURCE_PREFIX = ACTION_PREFIX
 
 
@@ -63,32 +61,6 @@ def _apply_log_level(config: dict) -> None:
     else:
         logger.warning("Invalid log level %r, using INFO", level_name)
         logging.getLogger().setLevel(logging.INFO)
-
-
-def _resolve_exclusion(config: dict, interfaces: list[InterfaceConfig]) -> AgentEndpoint | None:
-    """Resolve the agent endpoint to exclude.
-
-    `exclude_agent_traffic` is deliberately NOT in `config.schema.json`, so the
-    app cannot offer it and (`additionalProperties: false`) will not accept it.
-    Disabling exclusion on an interface that carries the agent's stream is not
-    merely noisy - a captured packet emits a row, the row is published, and the
-    publish is captured, so at a large snaplen it diverges rather than settling.
-    The knob survives here for the one case that is safe (an interface the agent
-    never touches) and for tests; nothing advertises it.
-    """
-    if not config.get("exclude_agent_traffic", True):
-        for iface in interfaces:
-            if is_loopback_interface(iface.interface):
-                logger.warning(AMPLIFICATION_WARNING, iface.interface, iface.snaplen)
-        logger.warning(
-            "Agent-traffic exclusion is disabled; captured traffic may include this "
-            "extension's own publishes."
-        )
-        return None
-
-    endpoint = _resolve_agent_endpoint()
-    logger.info("Excluding agent traffic: %s", endpoint.describe())
-    return endpoint
 
 
 def _install_shutdown(stop_event: threading.Event) -> None:
@@ -163,13 +135,14 @@ def _resolve_output_file(file: Path | None) -> Path | None:
 
 def run_app_mode(file: Path | None = None) -> None:
     """Run from the Zelos App / supervisor configuration (no subcommand)."""
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigValidationError as exc:
+        _fail("Invalid configuration: " + "; ".join(m.strip(" •") for m in exc.errors))
     _apply_log_level(config)
 
     advanced = config.get("advanced") or {}
     log_frames = bool(advanced.get("log_frames", True))
-    # `.get` with a default, not `or`: an explicit null means "store every
-    # captured byte" and must survive, where `or` would fold it back to 256.
     stored_frame_bytes = advanced.get("stored_frame_bytes", DEFAULT_STORED_FRAME_BYTES)
     replay = str(advanced.get("replay_pcap") or "").strip()
     try:
@@ -226,11 +199,11 @@ def run_app_mode(file: Path | None = None) -> None:
         return
 
     try:
-        endpoint = _resolve_exclusion(config, interfaces)
+        endpoint = _resolve_agent_endpoint()
     except ConfigError as exc:
-        # An agent host that resolves to nothing: the exclusion cannot be built,
-        # and capturing without it is the amplification loop.
+        # An agent host that resolves to nothing: capturing without the exclusion feeds back.
         _fail(str(exc))
+    logger.info("Excluding agent traffic: %s", endpoint.describe())
     sessions = [
         CaptureSession(
             cfg,
@@ -371,7 +344,7 @@ def capture_cmd(
     no_someip_sd: bool,
     no_doip: bool,
 ) -> None:
-    """Capture one or more INTERFACEs without app configuration.
+    """Capture one or more interfaces without app configuration.
 
     Examples:
 
@@ -379,10 +352,7 @@ def capture_cmd(
 
       zelos-extension-packet capture eth0 eth1 --snaplen 1518 --file
     """
-    # Through `parse_interfaces` so the CLI gets the same duplicate-name
-    # check as app mode: `capture eth0.1 eth0:1` sanitizes to one name. The
-    # flags are the app's Advanced settings, which is what "one --snaplen for
-    # every interface" already meant.
+    # The app's duplicate-name check: `capture eth0.1 eth0:1` sanitizes to one name.
     try:
         configs = parse_interfaces(
             {

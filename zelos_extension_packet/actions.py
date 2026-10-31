@@ -128,10 +128,9 @@ def list_interfaces() -> dict[str, Any]:
     title="Interface",
     description="Leave empty for every running capture.",
     required=False,
-    default="",
     choices=_available_captures,
 )
-def capture_stats(name: str = "") -> dict[str, Any]:
+def capture_stats(name: str | None = None) -> dict[str, Any]:
     if name:
         session = CAPTURES.get(name)
         if session is None:
@@ -180,11 +179,7 @@ def check_permissions(interface: str = "") -> dict[str, Any]:
     "trace (.trz). Runs without the "
     "extension running - no capture handle, no interface, no privileges, and no "
     "agent: the trace is written straight to disk.",
-    # Decoding is I/O bound over files that can reach multi-GB. 30 minutes is a
-    # ceiling for the pathological case, not an expectation; the action returns
-    # as soon as the file is written. The AI tool bridge clamps its own calls to
-    # MAX_ACTION_TOOL_TIMEOUT_MS (5 min) regardless, so long conversions are an
-    # action-panel / CLI path.
+    # Decoding a multi-GB file is I/O bound; 30 minutes bounds the pathological case.
     timeout=1800.0,
     standalone=True,
 )

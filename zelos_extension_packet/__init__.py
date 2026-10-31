@@ -15,14 +15,7 @@ from .capture import (
     replay_pcap,
 )
 
-#: The namespace actions are addressed under. One definition for both the live
-#: registration (`zelos_sdk.init(name=ACTION_PREFIX, actions=True)`) and the
-#: at-rest inventory the packaging step dumps from `main.py`, which re-exports
-#: it. Nothing binds the two, so a mismatch silently produces two unrelated
-#: action trees - `Packet/convert_pcap` live and `main/convert_pcap` at rest.
-#:
-#: Also the trace source every capture writes into (`PACKET_SOURCE_NAME`), so
-#: the address a user reads in the app is the one they type.
+#: The namespace of the actions and the trace source; it must equal `name` in extension.toml.
 ACTION_PREFIX = "Packet"
 
 __all__ = [

@@ -314,8 +314,7 @@ class TestRemediationText:
         text = capture_grant_instructions()
         assert FAKE_REMEDIATION in text
         assert "Replay PCAP File" in text
-        # ...pinned to this interpreter: the package writes the command with
-        # `$(command -v python3)`, which is not the agent's extension env.
+        # A native command written with `$(command -v python3)` is not the agent's extension env.
         assert f"sudo {sys.executable} -m zelos_packet install-helper" in text
 
     def test_linux_names_the_bootstrap_with_the_running_interpreter(self):
@@ -324,23 +323,32 @@ class TestRemediationText:
         text = builtin_grant_instructions(system="Linux", executable="/usr/bin/python3.11")
         assert "sudo /usr/bin/python3.11 -m zelos_packet install-helper" in text
         assert "/usr/bin/python3.11 -m zelos_packet status" in text
-        assert "setcap" not in text, "the interpreter grant is gone"
+        assert "setcap" not in text, "the helper holds the capability, not the interpreter"
         assert "CAP_NET_ADMIN" not in text, "unnecessary for wired capture"
 
     def test_macos_names_the_same_bootstrap(self):
-        """One grant flow, not two: this must not drift back into a
-        hand-rolled chgrp/chmod recipe that zelos-packet no longer performs."""
+        """One grant flow, not two: the package's helper, never a hand-rolled chgrp/chmod recipe."""
         text = builtin_grant_instructions(system="Darwin", executable="/opt/py/bin/python3")
         assert "/dev/bpf*" in text
         assert "sudo /opt/py/bin/python3 -m zelos_packet install-helper" in text
         assert "access_bpf" in text
         assert "ChmodBPF" in text
 
-    def test_both_platforms_disclose_the_relogin(self):
-        """Membership only applies at next login - the single most common
-        support question."""
-        for system in ("Linux", "Darwin"):
-            assert "log out and back in" in builtin_grant_instructions(system=system)
+    def test_linux_discloses_the_relogin(self):
+        """Linux stamps a session's groups at login - the single most common support question."""
+        assert "log out and back in" in builtin_grant_instructions(system="Linux")
+
+    def test_macos_asks_only_for_a_zelos_restart(self):
+        """macOS resolves group membership per process, so a reopened app has the group."""
+        text = builtin_grant_instructions(system="Darwin")
+        assert "quit and reopen Zelos" in text
+        assert "log out" not in text
+
+    def test_the_session_step_follows_the_native_text_only_on_linux(self, fake_packet, monkeypatch):
+        for system, expected in (("Linux", True), ("Darwin", False)):
+            monkeypatch.setattr(capture_mod.platform, "system", lambda system=system: system)
+            text = capture_grant_instructions()
+            assert ("Closing and reopening Zelos is NOT enough" in text) is expected, system
 
     def test_only_macos_claims_the_group_confers_sending(self):
         """The two grants are genuinely different and the text must not blur

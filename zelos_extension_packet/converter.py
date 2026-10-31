@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import pkg
-from .capture import AutoEthConfig, ConfigError, make_decoder
+from .capture import DEFAULT_AUTOETH, AutoEthConfig, ConfigError, make_decoder
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +95,7 @@ def _packet_progress(decoder: Any, input_file: Path, *, enabled: bool) -> Iterat
     try:
         yield
     finally:
-        # Join before the final read: the poller owns `bar` until it stops, and
-        # two threads updating one bar double-counts. Joining also runs on the
-        # exception path, so a failed decode leaves no orphan thread.
+        # Join before the final read: two threads updating one bar double-count.
         done.set()
         thread.join(timeout=1.0)
         bar.update(decoder.metrics().packets_received - bar.n)
@@ -213,7 +211,7 @@ def convert_pcap(
     *,
     log_frames: bool = True,
     progress: bool = False,
-    autoeth: AutoEthConfig = AutoEthConfig(),
+    autoeth: AutoEthConfig = DEFAULT_AUTOETH,
 ) -> dict[str, Any]:
     """Convert one pcap/pcapng, optionally gzip or zstd compressed, to
     `output_file`. No agent, no `zelos_sdk.init()`.
@@ -255,23 +253,15 @@ def convert_pcap(
                 packets = decoder.convert_file(str(source))
             decoder.flush()
     except KeyboardInterrupt:
-        # A deliberate abort is not a failure: the rows drained so far are a
-        # valid trace (the package aborts between batches), and whoever hits
-        # Ctrl-C at minute 25 of a long convert wants those 25 minutes.
+        # The package aborts between batches, so the rows drained so far are a valid trace.
         logger.error("Aborted; partial trace kept: %s", destination)
         raise
     except BaseException as exc:
         if _is_truncated(exc):
-            # Every packet before the damage is already in the trace, the way a
-            # raw capture cut mid-record keeps its packets. Keep it, and still
-            # fail: the capture is incomplete.
+            # Every packet before the damage is in the trace: keep it, and still fail.
             logger.error("%s is incomplete; partial trace kept: %s", source.name, destination)
             raise type(exc)(f"{exc}. Partial trace: {destination}") from exc
-        # The writer creates the file before the first packet is decoded, so a
-        # FAILED decode would otherwise leave a stub .trz that looks exactly
-        # like a successful conversion of an empty capture. A partial trace
-        # from an error is worse than none: delete it and let the caller
-        # decide. `resolve_output` guarantees this path was ours to write.
+        # A failed decode leaves a stub that reads as an empty capture; this path was ours to write.
         destination.unlink(missing_ok=True)
         logger.error("Conversion of %s failed; removed partial %s", source.name, destination)
         raise
@@ -288,8 +278,7 @@ def convert_pcap(
 def _is_truncated(exc: BaseException) -> bool:
     """zelos-packet raises `CaptureTruncatedError` for a compressed capture
     that stopped decoding part-way, after flushing every packet before it."""
-    truncated = getattr(pkg.module(), "CaptureTruncatedError", None)
-    return truncated is not None and isinstance(exc, truncated)
+    return isinstance(exc, pkg.module().CaptureTruncatedError)
 
 
 def convert_paths(
@@ -300,7 +289,7 @@ def convert_paths(
     log_frames: bool = True,
     overwrite: bool = False,
     progress: bool = False,
-    autoeth: AutoEthConfig = AutoEthConfig(),
+    autoeth: AutoEthConfig = DEFAULT_AUTOETH,
 ) -> list[dict[str, Any]]:
     """Convert every input to its own `.trz`. One input file, one output file.
 

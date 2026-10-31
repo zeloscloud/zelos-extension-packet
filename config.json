@@ -1,8 +1,0 @@
-{
-  "interfaces": [],
-  "advanced": {
-    "log_frames": true,
-    "stored_frame_bytes": null,
-    "log_level": "INFO"
-  }
-}

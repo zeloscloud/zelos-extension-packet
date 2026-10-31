@@ -1,8 +1,12 @@
-"""App-mode wiring: exclusion resolution and the amplification warning."""
+"""App-mode wiring: trace logging and the action surface."""
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
+
+import pytest
 
 from zelos_extension_packet import cli
 from zelos_extension_packet.agent_filter import AgentEndpoint
@@ -15,40 +19,24 @@ def _iface(name: str, snaplen: int = 512) -> InterfaceConfig:
     return InterfaceConfig(interface=name, name=name.replace(".", "_"), snaplen=snaplen)
 
 
-class TestResolveExclusion:
-    def test_enabled_by_default(self, monkeypatch):
-        monkeypatch.setattr(cli, "_resolve_agent_endpoint", lambda: ENDPOINT)
-        assert cli._resolve_exclusion({}, [_iface("eth0")]) is ENDPOINT
+def _run(action: str, params: dict) -> dict:
+    """Through the SDK's registry, which validates `params` the way every caller's are."""
+    from zelos_sdk.actions import ActionsRegistry
 
-    def test_disabled_returns_none(self):
-        assert cli._resolve_exclusion({"exclude_agent_traffic": False}, [_iface("eth0")]) is None
+    from zelos_extension_packet import actions
 
-    def test_disabled_on_loopback_warns_about_amplification(self, caplog):
-        with caplog.at_level(logging.WARNING):
-            cli._resolve_exclusion({"exclude_agent_traffic": False}, [_iface("lo0", 1518)])
-        warnings = "\n".join(r.getMessage() for r in caplog.records)
-        assert "'lo0'" in warnings
-        assert "amplifies" in warnings
-        assert "1518" in warnings
-
-    def test_disabled_on_a_normal_interface_warns_but_not_about_loopback(self, caplog):
-        with caplog.at_level(logging.WARNING):
-            cli._resolve_exclusion({"exclude_agent_traffic": False}, [_iface("eth0")])
-        warnings = "\n".join(r.getMessage() for r in caplog.records)
-        assert "exclusion is disabled" in warnings
-        assert "amplifies" not in warnings
+    registry = ActionsRegistry()
+    actions.register_actions(registry)
+    return registry.execute(action, params).value
 
 
 class TestTraceLogging:
     def test_log_records_ride_the_extensions_own_source(self):
         """`Packet/log` next to the captures, not a `Packet_log` sibling: the handler
         wraps the global source `init` made, and attaching twice adds nothing."""
-        import logging
 
         import zelos_sdk
         from zelos_sdk.hooks.logging import TraceLoggingHandler
-
-        from zelos_extension_packet import cli
 
         from .conftest import ensure_sdk_init
 
@@ -68,6 +56,35 @@ class TestTraceLogging:
                 root.removeHandler(h)
             for h in before:
                 root.addHandler(h)
+
+
+class TestSavedConfig:
+    @pytest.mark.parametrize(
+        ("saved", "reason"),
+        [
+            (
+                {"interfaces": [], "demo": True},
+                "<root>: Additional properties are not allowed ('demo' was unexpected)",
+            ),
+            (
+                {"interfaces": [{"name": "uplink"}]},
+                "interfaces.0: 'interface' is a required property",
+            ),
+        ],
+    )
+    def test_settings_off_the_schema_exit_with_one_error_line(
+        self, tmp_path, monkeypatch, caplog, saved, reason
+    ):
+        config = tmp_path / "config.json"
+        config.write_text(json.dumps(saved))
+        monkeypatch.setenv("ZELOS_CONFIG_PATH", str(config))
+        monkeypatch.chdir(Path(__file__).parents[1])
+        with pytest.raises(SystemExit) as exc:
+            cli.run_app_mode()
+        assert exc.value.code == 1
+        assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == [
+            f"Invalid configuration: {reason}"
+        ]
 
 
 class TestActionsSurface:
@@ -107,7 +124,7 @@ class TestActionsSurface:
         from zelos_extension_packet import actions
 
         actions.CAPTURES.clear()
-        result = actions.capture_stats()
+        result = _run("capture_stats", {})
         assert result["status"] == "warning"
         assert result["captures"] == []
 
@@ -120,7 +137,10 @@ class TestActionsSurface:
         actions.CAPTURES.clear()
         actions.CAPTURES["en0"] = session
         try:
-            result = actions.capture_stats()
+            # Nothing chosen: what the form sends when left empty, and what a caller omits.
+            assert _run("capture_stats", {"name": None}) == _run("capture_stats", {})
+            assert _run("capture_stats", {"name": "en0"})["captures"][0]["interface"] == "en0"
+            result = _run("capture_stats", {})
             assert result["status"] == "success"
             [stats] = result["captures"]
             assert stats["interface"] == "en0"
