@@ -67,7 +67,7 @@
         "buffer_size": {
           "type": "integer",
           "title": "Kernel Buffer Size (bytes)",
-          "description": "Kernel capture buffer, per interface. Larger buffers absorb bursts without kernel drops, at the cost of RAM. If the 'dropped' counter in the 'Capture stats' action climbs, raise this.",
+          "description": "Kernel capture buffer, per interface. Larger buffers absorb bursts without kernel drops, at the cost of RAM. Raise this if kernel drops climb: packets_dropped_kernel in the capture's stats in the tree (Packet/<capture>/stats), which the Packet List shows as Dropped N kernel / M agent.",
           "default": 8388608,
           "minimum": 65536,
           "maximum": 268435456
