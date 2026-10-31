@@ -128,10 +128,9 @@ def list_interfaces() -> dict[str, Any]:
     title="Interface",
     description="Leave empty for every running capture.",
     required=False,
-    default="",
     choices=_available_captures,
 )
-def capture_stats(name: str = "") -> dict[str, Any]:
+def capture_stats(name: str | None = None) -> dict[str, Any]:
     if name:
         session = CAPTURES.get(name)
         if session is None:

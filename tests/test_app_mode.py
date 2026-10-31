@@ -15,6 +15,17 @@ def _iface(name: str, snaplen: int = 512) -> InterfaceConfig:
     return InterfaceConfig(interface=name, name=name.replace(".", "_"), snaplen=snaplen)
 
 
+def _run(action: str, params: dict) -> dict:
+    """Through the SDK's registry, which validates `params` the way every caller's are."""
+    from zelos_sdk.actions import ActionsRegistry
+
+    from zelos_extension_packet import actions
+
+    registry = ActionsRegistry()
+    actions.register_actions(registry)
+    return registry.execute(action, params).value
+
+
 class TestTraceLogging:
     def test_log_records_ride_the_extensions_own_source(self):
         """`Packet/log` next to the captures, not a `Packet_log` sibling: the handler
@@ -80,7 +91,7 @@ class TestActionsSurface:
         from zelos_extension_packet import actions
 
         actions.CAPTURES.clear()
-        result = actions.capture_stats()
+        result = _run("capture_stats", {})
         assert result["status"] == "warning"
         assert result["captures"] == []
 
@@ -93,7 +104,10 @@ class TestActionsSurface:
         actions.CAPTURES.clear()
         actions.CAPTURES["en0"] = session
         try:
-            result = actions.capture_stats()
+            # Nothing chosen: what the form sends when left empty, and what a caller omits.
+            assert _run("capture_stats", {"name": None}) == _run("capture_stats", {})
+            assert _run("capture_stats", {"name": "en0"})["captures"][0]["interface"] == "en0"
+            result = _run("capture_stats", {})
             assert result["status"] == "success"
             [stats] = result["captures"]
             assert stats["interface"] == "en0"
