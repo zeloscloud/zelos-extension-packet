@@ -104,7 +104,7 @@ With `advanced.arxml`, SOME/IP payloads decode into the **SOMEIP** source and So
 | `interfaces[].name` | interface name | Names this capture's branch in the tree |
 | `advanced.snaplen` | `512`; `1518` with `arxml` or `someip.ports` | Bytes captured per packet, on every interface; raise for full payloads |
 | `advanced.promiscuous` | `false` | Enable for a mirror/SPAN port or tap |
-| `advanced.buffer_size` | `8388608` | Raise if `capture_stats` shows `kernel_drops` climbing |
+| `advanced.buffer_size` | `8388608` | Raise if `packets_dropped_kernel` climbs in `Packet/<capture>/stats`, which the Packet List shows as Dropped N kernel / M agent |
 | `advanced.replay_pcap` | – | Replay a file instead of capturing (original pace, stamped from now) |
 | `advanced.log_frames` | `true` | Store raw bytes in the `frame` column |
 | `advanced.stored_frame_bytes` | `null` | Bytes stored per packet; `null` stores everything captured |

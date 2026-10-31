@@ -67,6 +67,15 @@ class TestSchemaDefaults:
             load(tmp_path, {"advanced": {"snaplen": 8}})
         assert "snaplen" in str(excinfo.value)
 
+    def test_buffer_size_names_the_drop_counter_the_app_shows(self):
+        advanced = json.loads(SCHEMA_PATH.read_text())["properties"]["advanced"]["properties"]
+        description = advanced["buffer_size"]["description"]
+        # Capture Stats is hidden from the app's action list.
+        assert "Capture stats" not in description
+        assert "packets_dropped_kernel in the capture's stats" in description
+        assert "(Packet/<capture>/stats)" in description
+        assert "Dropped N kernel / M agent" in description
+
 
 class TestParseInterfaces:
     def test_defaults_match_the_schema(self):
