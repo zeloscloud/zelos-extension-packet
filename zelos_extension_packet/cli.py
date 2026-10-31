@@ -12,7 +12,7 @@ from types import FrameType
 
 import rich_click as click
 import zelos_sdk
-from zelos_sdk.extensions import load_config
+from zelos_sdk.extensions import ConfigValidationError, load_config
 
 from . import ACTION_PREFIX, pkg
 from . import actions as packet_actions
@@ -135,7 +135,10 @@ def _resolve_output_file(file: Path | None) -> Path | None:
 
 def run_app_mode(file: Path | None = None) -> None:
     """Run from the Zelos App / supervisor configuration (no subcommand)."""
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigValidationError as exc:
+        _fail("Invalid configuration: " + "; ".join(m.strip(" •") for m in exc.errors))
     _apply_log_level(config)
 
     advanced = config.get("advanced") or {}

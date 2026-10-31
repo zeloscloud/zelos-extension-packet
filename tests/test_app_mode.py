@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
+
+import pytest
 
 from zelos_extension_packet import cli
 from zelos_extension_packet.agent_filter import AgentEndpoint
@@ -52,6 +56,35 @@ class TestTraceLogging:
                 root.removeHandler(h)
             for h in before:
                 root.addHandler(h)
+
+
+class TestSavedConfig:
+    @pytest.mark.parametrize(
+        ("saved", "reason"),
+        [
+            (
+                {"interfaces": [], "demo": True},
+                "<root>: Additional properties are not allowed ('demo' was unexpected)",
+            ),
+            (
+                {"interfaces": [{"name": "uplink"}]},
+                "interfaces.0: 'interface' is a required property",
+            ),
+        ],
+    )
+    def test_settings_off_the_schema_exit_with_one_error_line(
+        self, tmp_path, monkeypatch, caplog, saved, reason
+    ):
+        config = tmp_path / "config.json"
+        config.write_text(json.dumps(saved))
+        monkeypatch.setenv("ZELOS_CONFIG_PATH", str(config))
+        monkeypatch.chdir(Path(__file__).parents[1])
+        with pytest.raises(SystemExit) as exc:
+            cli.run_app_mode()
+        assert exc.value.code == 1
+        assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == [
+            f"Invalid configuration: {reason}"
+        ]
 
 
 class TestActionsSurface:
