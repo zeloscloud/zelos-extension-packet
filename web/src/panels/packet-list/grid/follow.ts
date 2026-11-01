@@ -342,7 +342,8 @@ export function useGridFollow<TRow extends { id: string }>({
     else scrollToTail();
   }, [settle, cursorRowId, scrollToRow, scrollToTail]);
 
-  const followVisible = !follow && (cursorRowId !== undefined || followsTail);
+  const followVisible =
+    !follow && newestRowId !== undefined && (cursorRowId !== undefined || followsTail);
   const followLabel = cursorRowId !== undefined ? "Jump to cursor" : "Jump to latest";
   const followAction = useMemo(
     () => (followVisible ? { label: followLabel, onClick: onJumpToFollow } : undefined),

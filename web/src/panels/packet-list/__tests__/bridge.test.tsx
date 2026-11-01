@@ -333,6 +333,38 @@ describe("PacketListPanel scrolled away from the row it follows", () => {
   });
 });
 
+describe("PacketListPanel when its trace closes", () => {
+  const closeTrace = () =>
+    bridge?.setWorkspace({ id: "ws-1", name: "Workspace", modeKind: "LIVE", traces: [] });
+  const followLive = () => bridge?.setTime({ playback: "LIVE", cursorS: null });
+
+  it.each([
+    ["the workspace, then the time", [closeTrace, followLive]],
+    ["the time, then the workspace", [followLive, closeTrace]],
+  ])(
+    "drops the trace's rows at once and lists live packets as they land (%s)",
+    async (_, steps) => {
+      await mountPanel({
+        workspace: { id: "ws-1", name: "Workspace", modeKind: "TRACE", traces: [TRACE] },
+        time: { mode: "absolute", playback: "PAUSED", cursorS: 20 },
+      });
+      act(() => scrollGrid(1_000));
+      expect(screen.getByText("Jump to cursor")).toBeTruthy();
+
+      for (const step of steps) act(() => step());
+
+      expect(screen.queryAllByTestId("row")).toHaveLength(0);
+      expect(screen.queryByText("Jump to latest")).toBeNull();
+
+      pushPackets([{ ...(PACKETS[0] as Packet), time_s: 1_000, frame_no: 7, info: "live SYN" }]);
+      await vi.waitFor(() => expect(screen.getAllByTestId("row")).toHaveLength(1));
+      expect(screen.getByText("live SYN")).toBeTruthy();
+      expect(screen.queryByText("Jump to latest")).toBeNull();
+      expect(callsTo("panel.unsubscribe")).toEqual([]);
+    },
+  );
+});
+
 describe("PacketListPanel view state", () => {
   // One saved layout seeds many workspaces, so the same panel id reopens in each of them.
   it("keeps each workspace's search apart", async () => {
