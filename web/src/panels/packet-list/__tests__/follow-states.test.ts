@@ -349,6 +349,19 @@ describe("useGridFollow — the tail", () => {
     expect(result.current.follow).toBeUndefined();
   });
 
+  it("offers no way back on an empty list", () => {
+    const { result, rerender } = renderFollow();
+    scrollTo(result.current, 0);
+    expect(result.current.follow).toBeDefined();
+
+    act(() => {
+      grid.rows = [];
+    });
+    rerender(options({ newestRowId: undefined }));
+
+    expect(result.current.follow).toBeUndefined();
+  });
+
   it("offers no button when the panel is not following the tail", () => {
     const { result } = renderFollow({ followsTail: false });
 

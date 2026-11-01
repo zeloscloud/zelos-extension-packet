@@ -1,6 +1,7 @@
 import {
   type AppBridgePanelData,
   type AppBridgePanelSignal,
+  type AppBridgeWorkspaceInfo,
   type ColumnMetadata,
   MockBridge,
   type PanelSubscribeParams,
@@ -95,10 +96,22 @@ function packetsFrame(frameNos: number[], info: string[]): Omit<AppBridgePanelDa
   };
 }
 
+const LIVE_WORKSPACE: AppBridgeWorkspaceInfo = {
+  id: "ws-1",
+  name: "Workspace",
+  modeKind: "LIVE",
+  traces: [],
+};
+const TRACE_WORKSPACE: AppBridgeWorkspaceInfo = {
+  ...LIVE_WORKSPACE,
+  modeKind: "TRACE",
+  traces: ["/captures/demo.trz"],
+};
+
 const ui = (frozen: boolean, fields = FIELDS) => (
   <ZelosBridgeProvider
     showDevelopmentBanner={false}
-    connectOptions={{ panel: { signals: SIGNALS } }}
+    connectOptions={{ workspace: LIVE_WORKSPACE, panel: { signals: SIGNALS } }}
   >
     <Rows frozen={frozen} fields={fields} />
   </ZelosBridgeProvider>
@@ -151,6 +164,39 @@ describe("usePacketData", () => {
 
     act(() => bridge?.pushData(packetsFrame([3, 2, 1], ["third", "second", "first"])));
     expect(screen.getByTestId("rows").textContent).toBe("first,second,third");
+    await settled(["panel.subscribe", "panel.unsubscribe", "panel.subscribe", "panel.unsubscribe"]);
+  });
+
+  it("drops the window when the workspace changes time source, until the new source answers", async () => {
+    render(ui(false));
+    await settled(["panel.subscribe"]);
+    act(() => bridge?.pushData(packetsFrame([2, 1], ["second", "first"])));
+
+    act(() => bridge?.setWorkspace({ ...LIVE_WORKSPACE, name: "Renamed" }));
+    expect(screen.getByTestId("rows").textContent).toBe("first,second");
+
+    // The host serves the live window it last sent until the recording's answers.
+    act(() => bridge?.setWorkspace(TRACE_WORKSPACE));
+    expect(screen.getByTestId("rows").textContent).toBe("");
+
+    act(() => bridge?.pushData(packetsFrame([9], ["recorded"])));
+    expect(screen.getByTestId("rows").textContent).toBe("recorded");
+    expect(methods()).toEqual(["panel.subscribe"]);
+  });
+
+  it("fetches the new time source's window while frozen, then holds it", async () => {
+    const { rerender } = render(ui(false));
+    await settled(["panel.subscribe"]);
+    act(() => bridge?.pushData(packetsFrame([2, 1], ["second", "first"])));
+    rerender(ui(true));
+    await settled(["panel.subscribe", "panel.unsubscribe"]);
+
+    act(() => bridge?.setWorkspace(TRACE_WORKSPACE));
+    expect(screen.getByTestId("rows").textContent).toBe("");
+    await settled(["panel.subscribe", "panel.unsubscribe", "panel.subscribe"]);
+
+    act(() => bridge?.pushData(packetsFrame([9], ["recorded"])));
+    expect(screen.getByTestId("rows").textContent).toBe("recorded");
     await settled(["panel.subscribe", "panel.unsubscribe", "panel.subscribe", "panel.unsubscribe"]);
   });
 
