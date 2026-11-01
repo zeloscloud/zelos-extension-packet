@@ -17,7 +17,7 @@ vi.mock("ag-grid-react", async () => (await import("./grid-mock")).mockAgGrid())
 const sdk = vi.hoisted(() => ({
   panel: null as AppBridgePanelInfo | null,
   bridge: {},
-  workspace: { id: "ws-1", name: "Workspace", modeKind: "TRACE" },
+  workspace: { id: "ws-1", name: "Workspace", modeKind: "TRACE", traces: ["/caps/a.trz"] },
   time: null as AppBridgeTimeInfo | null,
   actions: {
     setCursor: vi.fn(),
@@ -42,7 +42,10 @@ vi.mock("@zeloscloud/app-extension-sdk/react", () => ({
 }));
 
 const usePacketDataMock = vi.hoisted(() => vi.fn());
-vi.mock("../use-packet-data", () => ({ usePacketData: usePacketDataMock }));
+vi.mock("../use-packet-data", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../use-packet-data")>()),
+  usePacketData: usePacketDataMock,
+}));
 const usePacketStatsMock = vi.hoisted(() => vi.fn());
 vi.mock("../use-packet-stats", () => ({ usePacketStats: usePacketStatsMock }));
 
@@ -150,7 +153,7 @@ const projectedFields = (): PacketField[] =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  sdk.workspace = { id: "ws-1", name: "Workspace", modeKind: "TRACE" };
+  sdk.workspace = { id: "ws-1", name: "Workspace", modeKind: "TRACE", traces: ["/caps/a.trz"] };
   sdk.time = null;
   sdk.actions.showMenu.mockResolvedValue(null);
   sdk.actions.copyText.mockResolvedValue(null);
@@ -263,7 +266,7 @@ describe("PacketListPanel — scrolled away from the row it follows", () => {
   });
 
   it("keeps a paused live list scrolled off its cursor subscribed", () => {
-    sdk.workspace = { ...sdk.workspace, modeKind: "LIVE" };
+    sdk.workspace = { ...sdk.workspace, modeKind: "LIVE", traces: [] };
     sdk.time = timeState({ cursorS: 20 });
     mount();
     act(() => scrollGrid(1_000));
@@ -273,7 +276,7 @@ describe("PacketListPanel — scrolled away from the row it follows", () => {
   });
 
   it("holds a live list still once it is scrolled off the tail, and lets it go on Jump to latest", () => {
-    sdk.workspace = { ...sdk.workspace, modeKind: "LIVE" };
+    sdk.workspace = { ...sdk.workspace, modeKind: "LIVE", traces: [] };
     sdk.time = timeState({ playback: "LIVE" });
     mount();
     expect(frozen()).toBe(false);

@@ -334,6 +334,7 @@ describe("PacketListPanel scrolled away from the row it follows", () => {
 });
 
 describe("PacketListPanel when its trace closes", () => {
+  const TRACE_WORKSPACE = { id: "ws-1", name: "Workspace", modeKind: "TRACE", traces: [TRACE] };
   const closeTrace = () =>
     bridge?.setWorkspace({ id: "ws-1", name: "Workspace", modeKind: "LIVE", traces: [] });
   const followLive = () => bridge?.setTime({ playback: "LIVE", cursorS: null });
@@ -345,7 +346,7 @@ describe("PacketListPanel when its trace closes", () => {
     "drops the trace's rows at once and lists live packets as they land (%s)",
     async (_, steps) => {
       await mountPanel({
-        workspace: { id: "ws-1", name: "Workspace", modeKind: "TRACE", traces: [TRACE] },
+        workspace: TRACE_WORKSPACE,
         time: { mode: "absolute", playback: "PAUSED", cursorS: 20 },
       });
       act(() => scrollGrid(1_000));
@@ -363,6 +364,18 @@ describe("PacketListPanel when its trace closes", () => {
       expect(callsTo("panel.unsubscribe")).toEqual([]);
     },
   );
+
+  it("closes the drawer open on one of its packets, for good", async () => {
+    await mountPanel({ workspace: TRACE_WORKSPACE });
+    fireEvent.click(screen.getAllByTestId("row")[1] as HTMLElement);
+    await screen.findByTestId("packet-dissect-tree");
+
+    act(() => closeTrace());
+    expect(screen.queryByTestId("packet-frame-drawer")).toBeNull();
+
+    act(() => bridge?.setWorkspace(TRACE_WORKSPACE));
+    expect(screen.queryByTestId("packet-frame-drawer")).toBeNull();
+  });
 });
 
 describe("PacketListPanel view state", () => {

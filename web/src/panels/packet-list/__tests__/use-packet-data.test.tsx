@@ -216,6 +216,32 @@ const STATS_SIGNALS: AppBridgePanelSignal[] = ["packets_captured", "pps", "bps"]
   path: `Packet/eth0/stats.${signal}`,
 }));
 
+/** One `stats` answer: `packetsCaptured`, at 120 pps and 1.5 Mbit/s. */
+function statsFrame(packetsCaptured: string): Omit<AppBridgePanelData, "seq"> {
+  return {
+    id: "stats",
+    dataset: null,
+    latest: [
+      ["packets_captured", packetsCaptured],
+      ["pps", "120"],
+      ["bps", "1500000"],
+    ].map(([signal, value]) => ({
+      source: "Packet",
+      message: "eth0/stats",
+      signal: signal as string,
+      producer: null,
+      value: value as string,
+      tracePath: null,
+      timeNs: "100",
+      dataSegmentId: null,
+    })),
+    timeMode: "absolute",
+    totalRows: 0,
+    isLoading: false,
+    error: null,
+  };
+}
+
 function Strip() {
   return <p data-testid="strip">{usePacketStats(STATS_SIGNALS)}</p>;
 }
@@ -236,30 +262,31 @@ describe("usePacketStats", () => {
     );
     await settled(["panel.subscribe"]);
 
-    act(() => {
-      bridge?.pushData({
-        id: "stats",
-        dataset: null,
-        latest: [
-          ["packets_captured", "1500"],
-          ["pps", "120"],
-          ["bps", "1500000"],
-        ].map(([signal, value]) => ({
-          source: "Packet",
-          message: "eth0/stats",
-          signal: signal as string,
-          producer: null,
-          value: value as string,
-          tracePath: null,
-          timeNs: "100",
-          dataSegmentId: null,
-        })),
-        timeMode: "absolute",
-        totalRows: 0,
-        isLoading: false,
-        error: null,
-      });
-    });
+    act(() => bridge?.pushData(statsFrame("1500")));
     expect(screen.getByTestId("strip").textContent).toBe(expected);
+  });
+
+  it("clears the strip when the workspace changes time source, until the new source answers", async () => {
+    render(
+      <ZelosBridgeProvider
+        showDevelopmentBanner={false}
+        connectOptions={{ workspace: TRACE_WORKSPACE, panel: { signals: STATS_SIGNALS } }}
+      >
+        <Strip />
+      </ZelosBridgeProvider>,
+    );
+    await settled(["panel.subscribe"]);
+    act(() => bridge?.pushData(statsFrame("1500")));
+    expect(screen.getByTestId("strip").textContent).toBe(
+      "Packets 1,500 · Dropped 0 kernel / 0 agent",
+    );
+
+    act(() => bridge?.setWorkspace(LIVE_WORKSPACE));
+    expect(screen.getByTestId("strip").textContent).toBe("");
+
+    act(() => bridge?.pushData(statsFrame("2000")));
+    expect(screen.getByTestId("strip").textContent).toBe(
+      "Packets 2,000 · Dropped 0 kernel / 0 agent · 120 pps · 1.5 Mbit/s",
+    );
   });
 });

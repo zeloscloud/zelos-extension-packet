@@ -15,7 +15,7 @@ export function uniquePaths(signals: readonly AppBridgePanelSignal[]): string[] 
 }
 
 /** Where the workspace reads its data from: a live agent or its recordings. */
-function timeSourceOf(workspace: AppBridgeWorkspaceInfo | null): string {
+export function timeSourceOf(workspace: AppBridgeWorkspaceInfo | null): string {
   return workspace === null
     ? ""
     : [workspace.id, workspace.modeKind, ...workspace.traces].join("\u0000");
