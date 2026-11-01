@@ -40,7 +40,7 @@ import { resolveGridFontSize, useGridPanelState, useGridRowLookup } from "./grid
 import { PACKET_MENU, type PacketMenuTarget, packetMenuItems } from "./menu";
 import { packetQueryFields, resolvePacketPanelOptions, visiblePacketFields } from "./options";
 import { splitPacketSignals } from "./stats";
-import { usePacketData } from "./use-packet-data";
+import { timeSourceOf, usePacketData } from "./use-packet-data";
 import { usePacketStats } from "./use-packet-stats";
 
 const PACKET_GONE = "This packet is no longer available.";
@@ -196,20 +196,27 @@ function PacketListContent({ panel }: { panel: AppBridgePanelInfo }) {
     [lookupRow],
   );
 
-  const [frameRow, setFrameRow] = useState<PacketRow | null>(null);
-  const onRowClicked = useCallback((event: RowClickedEvent<PacketRow>) => {
-    if (event.data) setFrameRow(event.data);
-  }, []);
+  const source = timeSourceOf(workspace);
+  const [opened, setOpened] = useState<{ row: PacketRow; source: string } | null>(null);
+  // The drawer's packet is gone with the time source it was opened under.
+  if (opened !== null && opened.source !== source) setOpened(null);
+  const frameRow = opened?.source === source ? opened.row : null;
+  const onRowClicked = useCallback(
+    (event: RowClickedEvent<PacketRow>) => {
+      if (event.data) setOpened({ row: event.data, source });
+    },
+    [source],
+  );
   // The menu path selects the row as a click would, so the list and the pane always agree on which packet.
   const openFrame = useCallback(
     (row: PacketRow) => {
       getGridApi()?.getRowNode(row.id)?.setSelected(true);
-      setFrameRow(row);
+      setOpened({ row, source });
     },
-    [getGridApi],
+    [getGridApi, source],
   );
   const closeFrame = useCallback(() => {
-    setFrameRow(null);
+    setOpened(null);
     getGridApi()?.deselectAll();
   }, [getGridApi]);
   const frameQuery = useFrameQuery(bridge, frameRow, live);
