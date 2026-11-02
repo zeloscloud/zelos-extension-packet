@@ -7,7 +7,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["zelos", "extension", "packet", "pcap", "network"]
 dependencies = [
-    "zelos-sdk>=0.0.13a1",
+    "zelos-sdk>=0.0.13",
     "rich-click>=1.8.0",
     # Pinned: the extension calls the native API directly, so the two ship in lockstep.
     "zelos-packet==0.0.4",
