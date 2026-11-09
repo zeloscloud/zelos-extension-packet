@@ -1,6 +1,6 @@
 name = "Packet"
 version = "0.1.0"
-description = "Capture live network traffic or decode pcap and pcapng files (Linux, Apple silicon Macs) into packets in a Wireshark-style Packet List, with SOME/IP, SOME/IP-SD and DoIP decoded and SOME/IP payloads read from ARXML."
+description = "Capture live network traffic or decode pcap and pcapng files (Linux, Apple silicon Macs, Windows) into packets in a Wireshark-style Packet List, with SOME/IP, SOME/IP-SD and DoIP decoded and SOME/IP payloads read from ARXML."
 author = "Zelos"
 repository = "https://github.com/zeloscloud/zelos-extension-packet"
 # At most 20 keywords and 10 categories. Marketplace search matches both, the name, description,
@@ -20,7 +20,7 @@ schema = "config.schema.json"
 runtime = "python"
 entry = "main.py"
 python_version = "3.11"
-targets = ["linux-x86_64", "linux-aarch64", "darwin-arm64"]
+targets = ["linux-x86_64", "linux-aarch64", "darwin-arm64", "windows-x86_64"]
 
 [agent.stop]
 grace_seconds = 15

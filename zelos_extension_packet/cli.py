@@ -109,7 +109,9 @@ def _run_sessions(sessions: list[CaptureSession]) -> None:
             len(started),
             "s" if len(started) != 1 else "",
         )
-        stop_event.wait()
+        # Polled: a bare wait() ignores Ctrl+C on Windows, the agent's stop signal there.
+        while not stop_event.wait(0.5):
+            pass
     finally:
         for session in reversed(started):
             session.stop()

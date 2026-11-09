@@ -1,9 +1,10 @@
 """Zelos Packet extension.
 
-Live network capture (Linux AF_PACKET, macOS /dev/bpf) and pcap decode, driven
+Live network capture (Linux AF_PACKET, macOS /dev/bpf, Windows Npcap) and pcap decode, driven
 by the Rust-cored `zelos-packet` package.
 """
 
+from . import _agent_env  # noqa: F401  (first: sets the environment before anything reads it)
 from .agent_filter import AgentEndpoint, resolve_agent_endpoint
 from .capture import (
     CaptureDeniedError,
