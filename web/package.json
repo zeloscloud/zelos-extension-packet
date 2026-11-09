@@ -1,7 +1,7 @@
 {
   "name": "zelos-extension-packet",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Capture live network traffic or decode pcap and pcapng files (Linux, Apple silicon Macs) into packets in a Wireshark-style Packet List, with SOME/IP, SOME/IP-SD and DoIP decoded and SOME/IP payloads read from ARXML.",
   "author": "Zelos",
