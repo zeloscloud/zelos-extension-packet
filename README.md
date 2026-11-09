@@ -2,7 +2,7 @@
 
 Live network capture and pcap decode, in your Zelos workspace.
 
-- 📡 **Capture any NIC** — Linux and Apple silicon Macs, several interfaces at once
+- 📡 **Capture any NIC** — Linux, Apple silicon Macs and Windows, several interfaces at once
 - 🔍 **Every packet as a row** — addresses, ports, protocol, flags, and the raw bytes
 - 🧭 **Drag into a Packet List** — Wireshark-style list, filter as you type
 - 📈 **Plot the capture itself** — packet and byte rates, kernel drops
@@ -24,14 +24,15 @@ sudo /path/to/python -m zelos_packet install-helper
 - ⚠️ **macOS** `access_bpf` members can also **send** arbitrary frames: a bpf device is opened read-write and capture needs the write side
 - 🔁 **Linux**: log out and back in, then restart the agent — a session's groups are fixed at login; **macOS**: quit and reopen Zelos — a running app keeps the groups it started with
 - ✅ `python -m zelos_packet status` says whether capture would work right now
-- 🪟 Windows and Intel Macs have no capture agent this release — see [Platforms](#platforms)
+- 🪟 **Windows** needs [Npcap](https://npcap.com) (free; default install options; 1.82 or later keeps VLAN tags) instead of `install-helper`; interfaces are named by their Windows connection name (`Ethernet 5`)
+- Intel Macs have no capture agent this release — see [Platforms](#platforms)
 
 ## Platforms
 
 | | Linux x86_64 | Linux aarch64 | macOS Apple silicon | macOS Intel | Windows |
 | --- | --- | --- | --- | --- | --- |
 | Packet List panel (recorded traces) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Capture agent (live capture, pcap replay, `convert_pcap`) | ✅ | ✅ | ✅ | – | – |
+| Capture agent (live capture, pcap replay, `convert_pcap`) | ✅ | ✅ | ✅ | – | ✅ |
 
 The agent runs on the platforms `zelos-packet` ships native wheels for. Everywhere else the panel still
 opens any trace that holds packets.
