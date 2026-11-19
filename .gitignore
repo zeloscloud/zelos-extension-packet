@@ -27,3 +27,6 @@ actions.json
 
 # Zelos
 config.json
+
+# Claude Code
+.claude/
