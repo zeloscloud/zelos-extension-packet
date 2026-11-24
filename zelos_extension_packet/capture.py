@@ -470,9 +470,8 @@ def remediation_text(
     executable: str | None = None,
 ) -> str:
     """What a user sees when a capture handle is refused."""
-    return (
-        f"Permission denied opening a capture handle on {interface!r}.\n\n"
-        + capture_grant_instructions(system=system, executable=executable)
+    return f"Capture is not available on {interface!r}.\n\n" + capture_grant_instructions(
+        system=system, executable=executable
     )
 
 
@@ -800,7 +799,7 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
     supported = pkg.capture_supported() if pkg.available() else system in ("Linux", "Darwin")
 
     def denied(reason: str, target: str | None = None, remediation: str | None = None) -> dict:
-        # Every failure carries instructions; only a refusal passes the "permission denied" header.
+        # Every failure carries instructions; only a refusal passes the "not available" header.
         return {
             "supported": supported,
             "can_capture": False,
