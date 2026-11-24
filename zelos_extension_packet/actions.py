@@ -154,7 +154,9 @@ def capture_stats(name: str | None = None) -> dict[str, Any]:
 @action(
     "Check Permissions",
     "Probe whether live capture is possible on this machine and, if not, return "
-    "the exact command to fix it. Run this before the first Start.",
+    "the exact command to fix it. Run this before the first Start: it runs "
+    "without the extension running.",
+    standalone=True,
     read_only=True,
 )
 @action.text(

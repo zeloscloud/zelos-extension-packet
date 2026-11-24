@@ -236,3 +236,5 @@ class TestActionsSurface:
         assert result["status"] == "error"
         assert result["remediation"]
         assert "Replay PCAP File" in result["remediation"]
+        # Answers before the first Start, so it is served with the extension stopped.
+        assert actions.check_permissions._action.standalone
