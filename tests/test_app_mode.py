@@ -87,6 +87,27 @@ class TestSavedConfig:
         ]
 
 
+class TestCaptureEnded:
+    def test_the_last_capture_ending_stops_the_rest_and_raises(
+        self, fake_packet, monkeypatch, caplog
+    ):
+        """`run_app_mode` and `capture` turn the RuntimeError into one ERROR and exit 1."""
+        from zelos_extension_packet.capture import CaptureSession
+
+        from .conftest import FakeCapture
+
+        sessions = [CaptureSession(_iface(n), endpoint=ENDPOINT) for n in ("en0", "en1")]
+        monkeypatch.setattr(cli, "_install_shutdown", lambda _stop: None)
+        monkeypatch.setattr(FakeCapture, "is_active", False)
+        monkeypatch.setattr(FakeCapture, "error", "helper killed")
+        with pytest.raises(RuntimeError, match="en1 ended: helper killed. Capture has stopped on"):
+            cli._run_sessions(sessions)
+        assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == [
+            "Capture on en0 ended: helper killed"
+        ]
+        assert all(c.stopped for c in FakeCapture.instances)
+
+
 class TestActionsSurface:
     def test_actions_register_under_their_bare_names(self):
         from zelos_sdk.actions import ActionsRegistry

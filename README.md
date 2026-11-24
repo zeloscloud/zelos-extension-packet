@@ -121,7 +121,7 @@ With `advanced.arxml`, SOME/IP payloads decode into the **SOMEIP** source and So
 | --- | --- |
 | `Packet/list_interfaces` | NICs on the machine running the agent |
 | `Packet/check_permissions` | Can we capture, and through which backend? If not, the exact fix. Runs without the extension started |
-| `Packet/capture_stats` | Per-interface counters and drop accounting |
+| `Packet/capture_stats` | Per-interface counters and drop accounting; `error` once a capture has ended. When the last one ends, the extension logs the reason and exits with an error |
 | `Packet/convert_pcap` | Convert a pcap to `.trz`, optionally with ARXML. Runs without the extension started |
 
 ## CLI
