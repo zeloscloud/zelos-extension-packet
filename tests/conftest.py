@@ -90,6 +90,8 @@ class FakeCapture:
     #: Which backend the stand-in reports. `install_fake(backend=...)` sets it,
     #: because the two paths differ in whether a source is handed over.
     backend = "in-process"
+    is_active = True
+    error = None
 
     def __init__(
         self,

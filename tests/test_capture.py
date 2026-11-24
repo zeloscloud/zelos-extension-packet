@@ -215,7 +215,7 @@ class TestPermissionDenied:
             session(endpoint=ENDPOINT).start()
 
         assert "was denied" in str(excinfo.value)
-        assert "Permission denied opening a capture handle on 'en0'" in excinfo.value.remediation
+        assert "Capture is not available on 'en0'" in excinfo.value.remediation
         assert "Replay PCAP File" in excinfo.value.remediation
 
     def test_typed_permission_error_from_start_is_translated(self, monkeypatch):

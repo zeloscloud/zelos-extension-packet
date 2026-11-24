@@ -148,13 +148,23 @@ def capture_stats(name: str | None = None) -> dict[str, Any]:
             "message": "No captures are running. Configure interfaces and start the extension.",
             "captures": [],
         }
-    return {"status": "success", "captures": [s.stats() for s in sessions]}
+    rows = [s.stats() for s in sessions]
+    if ended := [str(r["name"]) for r in rows if not r["running"]]:
+        return {
+            "status": "error",
+            "message": f"Capture ended on {', '.join(ended)}: see its 'error' and the "
+            "extension log. Restart the extension to capture again.",
+            "captures": rows,
+        }
+    return {"status": "success", "captures": rows}
 
 
 @action(
     "Check Permissions",
     "Probe whether live capture is possible on this machine and, if not, return "
-    "the exact command to fix it. Run this before the first Start.",
+    "the exact command to fix it. Run this before the first Start: it runs "
+    "without the extension running.",
+    standalone=True,
     read_only=True,
 )
 @action.text(

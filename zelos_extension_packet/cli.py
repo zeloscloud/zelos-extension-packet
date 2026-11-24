@@ -92,7 +92,9 @@ def _install_replay_shutdown() -> None:
 def _run_sessions(sessions: list[CaptureSession]) -> None:
     """Start every session, wait for shutdown, then stop them in reverse order.
 
-    Returning normally (rather than `os._exit`) matters: the SDK registers an
+    A capture that ends while running is one ERROR line; the rest keep
+    capturing. When the last one ends this raises, and the caller exits
+    non-zero. Unwinding (rather than `os._exit`) matters: the SDK registers an
     atexit hook that drains the global trace namespace and blocks until every
     queued event has been delivered.
     """
@@ -110,8 +112,17 @@ def _run_sessions(sessions: list[CaptureSession]) -> None:
             "s" if len(started) != 1 else "",
         )
         # Polled: a bare wait() ignores Ctrl+C on Windows, the agent's stop signal there.
+        ended: set[str] = set()
         while not stop_event.wait(0.5):
-            pass
+            for session in started:
+                if session.name in ended or not (reason := session.failure()):
+                    continue
+                ended.add(session.name)
+                message = f"Capture on {session.config.interface} ended: {reason}"
+                if len(ended) == len(started):
+                    # Nothing left to capture: the caller logs this and exits non-zero.
+                    raise RuntimeError(f"{message}. Capture has stopped on all interfaces.")
+                logger.error("%s", message)
     finally:
         for session in reversed(started):
             session.stop()

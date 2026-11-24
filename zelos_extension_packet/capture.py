@@ -470,9 +470,8 @@ def remediation_text(
     executable: str | None = None,
 ) -> str:
     """What a user sees when a capture handle is refused."""
-    return (
-        f"Permission denied opening a capture handle on {interface!r}.\n\n"
-        + capture_grant_instructions(system=system, executable=executable)
+    return f"Capture is not available on {interface!r}.\n\n" + capture_grant_instructions(
+        system=system, executable=executable
     )
 
 
@@ -649,10 +648,18 @@ class CaptureSession:
         return {
             "interface": self.config.interface,
             "name": self.name,
-            "running": True,
+            "running": bool(getattr(cap, "is_active", True)),
+            "error": getattr(cap, "error", None),
             **{field: getattr(stats, field) for field in STATS_FIELDS},
             "metrics": {field: getattr(metrics, field) for field in METRICS_FIELDS},
         }
+
+    def failure(self) -> str | None:
+        """Why a started capture is no longer running, or None while it is."""
+        cap = self._capture
+        if cap is None or getattr(cap, "is_active", True):
+            return None
+        return getattr(cap, "error", None) or "the capture helper exited"
 
     def stop(self) -> None:
         """Stop capturing.
@@ -669,10 +676,13 @@ class CaptureSession:
         """
         if self._capture is None:
             return
+        ended = self.failure()
         try:
             self._capture.stop()
         except Exception:
-            logger.exception("Error stopping capture on %s", self.config.interface)
+            # An ended capture re-raises the failure already reported.
+            if not ended:
+                logger.exception("Error stopping capture on %s", self.config.interface)
         self._capture = None
         logger.info("Stopped capture on %s", self.config.interface)
 
@@ -789,7 +799,7 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
     supported = pkg.capture_supported() if pkg.available() else system in ("Linux", "Darwin")
 
     def denied(reason: str, target: str | None = None, remediation: str | None = None) -> dict:
-        # Every failure carries instructions; only a refusal passes the "permission denied" header.
+        # Every failure carries instructions; only a refusal passes the "not available" header.
         return {
             "supported": supported,
             "can_capture": False,
