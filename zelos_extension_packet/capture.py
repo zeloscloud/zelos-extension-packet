@@ -817,14 +817,8 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
     if not pkg.available():
         return denied(pkg.skip_reason(), interface)
 
-    target = interface
-    if not target:
-        candidates = list_interfaces()
-        preferred = [i for i in candidates if i.get("is_up") and not i.get("is_loopback")]
-        pool = preferred or candidates
-        if not pool:
-            return denied("No network interfaces were reported by zelos-packet")
-        target = str(pool[0]["name"])
+    # The verdict is the machine's, not an interface's: a name is only echoed back.
+    target = interface or ""
 
     # The package's verdict is reachable only through its CLI; a start would register events.
     try:
@@ -842,7 +836,7 @@ def probe_permissions(interface: str | None = None) -> dict[str, Any]:
         return denied(
             lines[-1] if lines else "zelos_packet status reported no capture privilege",
             target,
-            remediation=remediation_text(target),
+            remediation=remediation_text(target) if target else None,
         )
     return {
         "supported": True,
