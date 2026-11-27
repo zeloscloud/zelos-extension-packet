@@ -263,8 +263,8 @@ class TestPermissionDenied:
         result = probe_permissions()
         assert result["can_capture"] is True
         assert result["backend"] == "helper"
-        # First interface that is up and not loopback.
-        assert result["interface"] == "en0"
+        # The verdict is machine-wide: no interface is picked to stand for it.
+        assert result["interface"] == ""
         assert FakeCapture.instances == []
 
     def test_probe_reports_the_status_verdict_when_capture_is_refused(

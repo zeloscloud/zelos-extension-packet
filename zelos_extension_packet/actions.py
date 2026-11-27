@@ -170,7 +170,7 @@ def capture_stats(name: str | None = None) -> dict[str, Any]:
 @action.text(
     "interface",
     title="Interface",
-    description="Optional. Defaults to the first interface that is up and not loopback.",
+    description="Optional. The check covers the whole machine; a name is only echoed back.",
     required=False,
     default="",
     placeholder="eth0",

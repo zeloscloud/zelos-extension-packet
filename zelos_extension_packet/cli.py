@@ -309,12 +309,14 @@ def interfaces_cmd() -> None:
 
 
 @click.command("check")
-@click.option("--interface", default="", help="Interface to probe (default: first non-loopback).")
+@click.option(
+    "--interface", default="", help="Interface to name in the result; the check is machine-wide."
+)
 def check_cmd(interface: str) -> None:
     """Probe whether live capture is permitted, and print how to fix it."""
     result = probe_permissions(interface.strip() or None)
     if result.get("can_capture"):
-        click.echo(f"Capture is permitted on {result.get('interface')}.")
+        click.echo(f"Capture is permitted on {result.get('interface') or 'this machine'}.")
         return
     click.echo(result.get("reason") or "Capture is not permitted.")
     if result.get("remediation"):
